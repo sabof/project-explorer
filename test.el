@@ -39,3 +39,24 @@
                       ("somefile2.js")
                       ("somefile.js")
                       ))))))
+
+(ert-deftest tf/sort ()
+  (let (( alist
+          '("root"
+            ("node2")
+            ("node1")
+            ("node3"
+             ("subnode1"
+              ("subnode3")
+              ("subnode2"))))))
+    (should (tree-equal (tf/sort (copy-tree alist))
+                        '("root"
+                          ("node3"
+                           ("subnode1"
+                            ("subnode2")
+                            ("subnode3")))
+                          ("node1")
+                          ("node2")
+                          )
+                        :test 'equal))
+    ))
