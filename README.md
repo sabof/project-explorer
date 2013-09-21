@@ -10,6 +10,9 @@ A webstorm-inspired project explorer. Based on unix "find", which means that it 
 
 ##TODO:
 
+    * Add ".." as the first folder
     * Populate incrementally
     * Use elisp "directory-files" as a fallback
+    * Don't assume everyone has bash installed
     * Add support for indicators
+    * Add "go up" command and shortcut

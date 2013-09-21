@@ -1,30 +1,63 @@
 ;; -*- lexical-binding: t -*-
 (defvar tf/process-and-args
-    (list "find" "."))
+  (list "find" "."))
 
 (defvar tf/get-directory-files-method
-  )
+  "find . \\( ! -path '*/.*' \\)"
+  "The \"backend\" for tree-find.
+  Can be a string, or a function.
+
+  The string will be executed in bash, and it's output should be a
+  list of files separated by newlines.
+
+  The fucntion takes 2 arguments, and should return a list of
+  files. It can also return nil - in which case you are on your
+  own, as there will be no furhter processing. The arguments are
+  the directory to scan, and depth. 0 means don't limit depth")
+
 
 (defvar tf/repopulate-function
-    (lambda (&rest ignore)
-      (let* (( output "")
-             ( buffer (current-buffer))
-             ( process
-               (apply 'start-process "tree-find"
-                      buffer tf/process-and-args))
-             ( inhibit-read-only t))
-        (erase-buffer)
-        (insert "Searching for files...")
-        (set-process-filter process
-                            (lambda (process string)
-                              (setq output (concat output string))))
-        (set-process-sentinel process
-                              (lambda (&rest ignore)
+  (lambda (&rest ignore)
+    ))
+
+(cl-defun tf/revert-buffer (&rest ignore)
+  (let (( inhibit-read-only t)
+        ;; ( shell
+        ;;   (or explicit-shell-file-name
+        ;;       (getenv "ESHELL")
+        ;;       shell-file-name))
+        )
+    (erase-buffer)
+    (delete-all-overlays)
+    (insert "Searching for files...")
+    (when (functionp tf/get-directory-files-method)
+      (let (( function-result
+              (funcall tf/get-directory-files-method
+                       default-directory
+                       0)))
+        (when function-result
+          (tf/find-output-to-tree function-result)))
+      (cl-return-from tf/revert-buffer))
+    (let* (( output "")
+           ( buffer (current-buffer))
+           ( process
+             (start-process "tree-find"
+                            buffer "bash" "-c" tf/get-directory-files-method))
+           ( inhibit-read-only t))
+      (set-process-filter process
+                          (lambda (process string)
+                            (setq output (concat output string))))
+      (set-process-sentinel process
+                            (lambda (&rest ignore)
+                              (let ((inhibit-read-only t))
                                 (with-current-buffer buffer
-                                  (tf/find-output-to-tree output))
-                                ;; (message output)
-                                ))
-        )))
+                                  (if (string-match-p "[^\n\t ]"
+                                                      output)
+                                      (tf/find-output-to-tree output)
+                                    (erase-buffer)
+                                    (insert "No files were found"))))
+                              ))
+      )))
 
 (defvar tf/walker nil
   "Meant to be dynamically bound")
@@ -35,18 +68,14 @@
 (defun tf/find-output-to-tree (output)
   (setq tmp output)
   (let* (( inhibit-read-only t)
-         ( tree (tf/paths-to-tree (split-string output "\n" t)))
+         ( tree (tf/paths-to-tree
+                 (if (stringp output)
+                     (split-string output "\n" t)
+                   output)))
          ( compressed-folders (tf/compress-tree tree))
          ( marked-folders (tf/tree-mark-folders compressed-folders))
          ( sorted-folder (tf/sort marked-folders)))
     (erase-buffer)
-    (delete-all-overlays)
-    ;; (message "%s" output)
-    ;; (message "%s" tf/paths-to-tree)
-    ;; (prin1 marked-folders (current-buffer))
-    ;; (prin1 marked-folders 'insert)
-    ;; (princ marked-folders 'insert)
-    ;; (insert (format "%s" marked-folders))
     (tf/print-indented-tree sorted-folder)
     (tf/show-first-only) ))
 
@@ -93,9 +122,9 @@
                    ( (and (= (length branch) 2)
                           (cl-cadadr branch))
                      (funcall tf/walker (cons (concat (car branch)
-                                                   "/"
-                                                   (cl-caadr branch))
-                                           (cl-cdadr branch))))
+                                                      "/"
+                                                      (cl-caadr branch))
+                                              (cl-cdadr branch))))
                    ( t (cons (car branch)
                              (mapcar tf/walker (cdr branch))))))))
     (funcall tf/walker path-tree)))
@@ -119,7 +148,7 @@
   "Tree find"
   "Display results of find as a folding tree"
   (setq-local revert-buffer-function
-              tf/repopulate-function)
+              'tf/revert-buffer)
   (setq-local tab-width 2)
   (es-define-keys tf/mode-map
     (kbd "<tab>") 'tf/tab
@@ -150,7 +179,6 @@
         (goto-char (line-beginning-position))
       (goto-char (line-end-position)))
     (when (re-search-forward regex nil t arg)
-      (message "yes")
       (goto-char (match-end 0))
       (forward-char -1)
       )))
@@ -182,29 +210,30 @@
           (tf/close)))))
   )
 
-  (cl-defun tf/close ()
-    (interactive)
-    (when (tf/closed-p)
-      (cl-return-from tf/close))
-    (let* (( indent
-             (save-excursion
-               (back-to-indentation)
-               (buffer-substring (line-beginning-position)
-                                 (point))))
-           ( end
-             (save-excursion
-               (goto-char (line-end-position 1))
-               (let (( regex
-                       (concat "^[\t]\\{0,"
-                               (number-to-string
-                                (length indent))
-                               "\\}[^\n \t]")))
-                 (setq tmp regex)
-                 (if (re-search-forward regex nil t)
-                     (line-end-position 0)
-                   (point-max)))))
-           ( ov (make-overlay (line-end-position 1)
-                              end)))
+(cl-defun tf/close ()
+  (interactive)
+  (when (or (looking-at ".*\n?\\'")
+            (tf/closed-p))
+    (cl-return-from tf/close))
+  (let* (( indent
+           (save-excursion
+             (back-to-indentation)
+             (buffer-substring (line-beginning-position)
+                               (point))))
+         ( end
+           (save-excursion
+             (goto-char (line-end-position 1))
+             (let (( regex
+                     (concat "^[\t]\\{0,"
+                             (number-to-string
+                              (length indent))
+                             "\\}[^\n \t]")))
+               (setq tmp regex)
+               (if (re-search-forward regex nil t)
+                   (line-end-position 0)
+                 (point-max)))))
+         ( ov (make-overlay (line-end-position 1)
+                            end)))
     (overlay-put ov 'isearch-open-invisible-temporary
                  'hs-isearch-show-temporary)
     (overlay-put ov 'isearch-open-invisible
@@ -231,7 +260,6 @@
   (rest branch))
 
 (defun tf/sort (branch)
-  (message "rest: %s" (rest branch))
   (let (( new-rest
           (sort (rest branch)
                 (lambda (a b)
@@ -242,7 +270,6 @@
                                (tf/directory-branch-p b))
                           nil)
                         ( t (string< (car a) (car b))))))))
-    (message "newrest: %s" new-rest)
     (setcdr branch (mapcar 'tf/sort new-rest))
     branch
     ))
