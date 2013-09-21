@@ -122,7 +122,10 @@
               tf/repopulate-function)
   (setq-local tab-width 2)
   (es-define-keys tf/mode-map
-    (kbd "<tab>") 'tf/tab)
+    (kbd "<tab>") 'tf/tab
+    (kbd "M-}") 'tf/forward-element
+    (kbd "M-{") 'tf/backward-element
+    )
   (revert-buffer))
 
 (defun tf/closed-p ()
@@ -132,17 +135,30 @@
                (overlay-get ov 'is-tf-hider))
              ovs)))
 
-(defun tf/next-sibling ()
-  (interactive)
-  (re-search-forward
-   (concat "^"
-           (make-string
-            (es-current-character-indentation)
-            ?\t )
-           "[^ \t\n]"
-           )
-   nil t))
+(defun tf/forward-element (&optional arg)
+  (interactive "p")
+  (setq arg (or arg 1))
+  (let* (( initial-indentation
+           (es-current-character-indentation))
+         ( regex
+           (concat "^\t\\{0,"
+                   (int-to-string
+                    initial-indentation)
+                   "\\}[^ \t\n]"
+                   )))
+    (if (cl-minusp arg)
+        (goto-char (line-beginning-position))
+      (goto-char (line-end-position)))
+    (when (re-search-forward regex nil t arg)
+      (message "yes")
+      (goto-char (match-end 0))
+      (forward-char -1)
+      )))
 
+(defun tf/backward-element (&optional arg)
+  (interactive "p")
+  (setq arg (or arg 1))
+  (tf/forward-element (- arg)))
 
 (defun tf/open (expanded)
   (interactive "P")
@@ -150,7 +166,7 @@
     (let (( initial-indentation
             (es-current-character-indentation))
           ( end (save-excursion
-                  (or (tf/next-sibling)
+                  (or (tf/forward-element)
                       (goto-char (point-max)))
                   (point))))
       (remove-overlays (es-total-line-beginning-position)
@@ -214,7 +230,6 @@
 (defun tf/directory-branch-p (branch)
   (rest branch))
 
-
 (defun tf/sort (branch)
   (message "rest: %s" (rest branch))
   (let (( new-rest
@@ -249,11 +264,12 @@
 
 (defun tf/get-filename ()
   (interactive)
-  (let (( get-line-filename
+  (let (( get-line-text
           (lambda ()
             (buffer-substring (es-indentation-end-pos)
                               (line-end-position))))
-        (tf/walker ))
+        ( tf/walker )
+        ( result ""))
     (save-excursion
       ())))
 
