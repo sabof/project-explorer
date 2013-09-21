@@ -84,6 +84,16 @@
            (replace-regexp-in-string "\\\\" "/" path t t)))
     (split-string normalized-path "/" t)))
 
+(defun tf/tab-ending ()
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (skip-chars-forward "\t")
+    (point)))
+
+(defun tf/current-indnetation ()
+  (- (tf/tab-ending)
+     (line-beginning-position)))
+
 (defun tf/paths-to-tree (paths)
   (let* (( paths (mapcar 'tf/path-to-list paths))
          ( add-member (lambda (what where)
@@ -139,24 +149,30 @@
                       (insert (make-string tf/depth ?\t))
                       (if (tf/directory-branch-p item)
                           (progn
-                            ;; (insert " ")
                             (insert-text-button
-                             "+"
+                             "►"
                              'action
                              (lambda (marker)
                                (goto-char (marker-position marker))
                                (tf/tab))
                              )
-                            (insert " "))
-                        (cond ( (zerop tf/depth))
-                              ( (insert "  ")))
-                        ;; (insert (if (and (zerop counter)
-                        ;;                  (not (zerop tf/depth)))
-                        ;;             "\\" "|"))
-                        )
-                      (insert (car item)
-                              ?\n
-                              )
+                            (insert " ")
+                            (insert-text-button (car item)
+                                                'action
+                                                (lambda (marker)
+                                                  (goto-char (marker-position marker))
+                                                  (setq default-directory
+                                                        (tf/get-filename))
+                                                  (revert-buffer))))
+                        (insert-text-button (car item)
+                                            'action
+                                            (lambda (marker)
+                                              (goto-char (marker-position marker))
+                                              (find-file-other-window
+                                               (tf/get-filename)))))
+                      (insert ?\n)
+
+
                       (when (cdr item)
                         (let ((tf/depth (1+ tf/depth)))
                           (funcall tf/walker (cdr item))))
@@ -170,6 +186,7 @@
               'tf/revert-buffer)
   (setq-local tab-width 2)
   (es-define-keys tf/mode-map
+    (kbd "u") 'tf/up-element
     (kbd "<tab>") 'tf/tab
     (kbd "M-}") 'tf/forward-element
     (kbd "M-{") 'tf/backward-element
@@ -310,16 +327,33 @@
       (tf/mode))
     (pop-to-buffer buf)))
 
+(defun tf/up-element ()
+  (interactive)
+  (goto-char (es-total-line-beginning-position))
+  (let (( indentation (tf/current-indnetation)))
+    (when  (and (not (zerop indentation))
+                (re-search-backward
+                 (format
+                  "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
+                  (number-to-string (1- indentation)))
+                 nil t))
+      (goto-char (match-end 1)))))
+
 (defun tf/get-filename ()
   (interactive)
-  (let (( get-line-text
-          (lambda ()
-            (buffer-substring (es-indentation-end-pos)
-                              (line-end-position))))
-        ( tf/walker )
-        ( result ""))
+  (let* (( get-line-text
+           (lambda ()
+             (goto-char (es-total-line-beginning))
+             (skip-chars-forward "\t ►")
+             (buffer-substring-no-properties
+              (point) (line-end-position))))
+         ( result
+           (funcall get-line-text)))
     (save-excursion
-      ())))
+      (while (tf/up-element)
+        (setq result (concat (funcall get-line-text)
+                             result))))
+    (expand-file-name result)))
 
 (provide 'tree-find)
 ;;; tree-find.el ends here
