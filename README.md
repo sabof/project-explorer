@@ -1,4 +1,5 @@
-A webstorm-inspired project explorer. Based on unix "find", which means that it supports filtering.
+# tree-find
+A webstorm-inspired project explorer. Based on unix "find", which means it supports all kinds of filtering "find" supports.
 
 ##Features:
 

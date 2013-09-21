@@ -66,7 +66,7 @@
   "Meant to be dynamically bound")
 
 (defun tf/find-output-to-tree (output)
-  (setq tmp output)
+  ;; (setq tmp output)
   (let* (( inhibit-read-only t)
          ( tree (tf/paths-to-tree
                  (if (stringp output)
@@ -133,15 +133,34 @@
   (let* (( tf/depth 0)
          ( tf/walker
            (lambda (level)
-             (cl-dolist (item level)
-               (insert (make-string tf/depth ?\t)
-                       (car item)
-                       ?\n
-                       )
-               (when (cdr item)
-                 (let ((tf/depth (1+ tf/depth)))
-                   (funcall tf/walker (cdr item))))
-               ))))
+             (cl-loop for item in level
+                      for counter = 0 then (1+ counter)
+                      do
+                      (insert (make-string tf/depth ?\t))
+                      (if (tf/directory-branch-p item)
+                          (progn
+                            ;; (insert " ")
+                            (insert-text-button
+                             "+"
+                             'action
+                             (lambda (marker)
+                               (goto-char (marker-position marker))
+                               (tf/tab))
+                             )
+                            (insert " "))
+                        (cond ( (zerop tf/depth))
+                              ( (insert "  ")))
+                        ;; (insert (if (and (zerop counter)
+                        ;;                  (not (zerop tf/depth)))
+                        ;;             "\\" "|"))
+                        )
+                      (insert (car item)
+                              ?\n
+                              )
+                      (when (cdr item)
+                        (let ((tf/depth (1+ tf/depth)))
+                          (funcall tf/walker (cdr item))))
+                      ))))
     (funcall tf/walker (rest tree))))
 
 (define-derived-mode tf/mode special-mode
@@ -173,12 +192,12 @@
            (concat "^\t\\{0,"
                    (int-to-string
                     initial-indentation)
-                   "\\}[^ \t\n]"
+                   "\\}[^\t\n]"
                    )))
     (if (cl-minusp arg)
         (goto-char (line-beginning-position))
       (goto-char (line-end-position)))
-    (when (re-search-forward regex nil t arg)
+    (when (re-search-forward regex nil t arg)`
       (goto-char (match-end 0))
       (forward-char -1)
       )))
@@ -204,7 +223,7 @@
         (while (re-search-forward (concat "^"
                                           (make-string (1+ initial-indentation)
                                                        ?\t )
-                                          "[^ \t\n]")
+                                          "[^\t\n]")
                                   end
                                   t)
           (tf/close)))))
@@ -217,7 +236,9 @@
     (cl-return-from tf/close))
   (let* (( indent
            (save-excursion
-             (back-to-indentation)
+             (goto-char (line-beginning-position))
+             (skip-chars-forward "\t")
+             ;; (back-to-indentation)
              (buffer-substring (line-beginning-position)
                                (point))))
          ( end
@@ -227,8 +248,8 @@
                      (concat "^[\t]\\{0,"
                              (number-to-string
                               (length indent))
-                             "\\}[^\n \t]")))
-               (setq tmp regex)
+                             "\\}[^\n\t]")))
+               ;; (setq tmp regex)
                (if (re-search-forward regex nil t)
                    (line-end-position 0)
                  (point-max)))))
@@ -274,7 +295,7 @@
     branch
     ))
 
-(defun tf/tab (arg)
+(defun tf/tab (&optional arg)
   (interactive "P")
   (if (tf/closed-p)
       (tf/open arg)
