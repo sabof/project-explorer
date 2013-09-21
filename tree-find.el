@@ -59,10 +59,7 @@
                               ))
       )))
 
-(defvar tf/walker nil
-  "Meant to be dynamically bound")
-
-(defvar tf/depth nil
+(defvar tf/depth 0
   "Meant to be dynamically bound")
 
 (defun tf/find-output-to-tree (output)
@@ -115,69 +112,58 @@
     ;; (cdr root)
     ))
 
-(defun tf/tree-mark-folders (tree)
-  (let (( tf/walker
-          (lambda (branch)
-            (when (rest branch)
-              (setcar branch (concat (car branch) "/")))
-            (mapcar tf/walker (rest branch)))))
-    (funcall tf/walker tree)
-    tree))
+(defun tf/tree-mark-folders (branch)
+  (when (tf/directory-branch-p branch)
+    (setcar branch (concat (car branch) "/")))
+  (mapc 'tf/tree-mark-folders (rest branch))
+  branch)
 
-(defun tf/compress-tree (path-tree)
-  (let* (( tf/walker
-           (lambda (branch)
-             (cond ( (= (length branch) 1)
-                     branch)
-                   ( (and (= (length branch) 2)
-                          (cl-cadadr branch))
-                     (funcall tf/walker (cons (concat (car branch)
-                                                      "/"
-                                                      (cl-caadr branch))
-                                              (cl-cdadr branch))))
-                   ( t (cons (car branch)
-                             (mapcar tf/walker (cdr branch))))))))
-    (funcall tf/walker path-tree)))
+(defun tf/compress-tree (branch)
+  (cond ( (= (length branch) 1)
+          branch)
+        ( (and (= (length branch) 2)
+               (cl-cadadr branch))
+          (tf/compress-tree
+           (cons (concat (car branch)
+                         "/"
+                         (cl-caadr branch))
+                 (cl-cdadr branch))))
+        ( t (cons (car branch)
+                  (mapcar 'tf/compress-tree (cdr branch))))))
 
-(defun tf/print-indented-tree (tree)
-  (let* (( tf/depth 0)
-         ( tf/walker
-           (lambda (level)
-             (cl-loop for item in level
-                      for counter = 0 then (1+ counter)
-                      do
-                      (insert (make-string tf/depth ?\t))
-                      (if (tf/directory-branch-p item)
-                          (progn
-                            (insert-text-button
-                             "►"
-                             'action
-                             (lambda (marker)
-                               (goto-char (marker-position marker))
-                               (tf/tab))
-                             )
-                            (insert " ")
-                            (insert-text-button (car item)
-                                                'action
-                                                (lambda (marker)
-                                                  (goto-char (marker-position marker))
-                                                  (setq default-directory
-                                                        (tf/get-filename))
-                                                  (revert-buffer))))
-                        (insert-text-button (car item)
-                                            'action
-                                            (lambda (marker)
-                                              (goto-char (marker-position marker))
-                                              (find-file-other-window
-                                               (tf/get-filename)))))
-                      (insert ?\n)
-
-
-                      (when (cdr item)
-                        (let ((tf/depth (1+ tf/depth)))
-                          (funcall tf/walker (cdr item))))
-                      ))))
-    (funcall tf/walker (rest tree))))
+(defun tf/print-indented-tree (branch)
+  (cl-loop for item in (cdr branch)
+           for counter = 0 then (1+ counter)
+           do
+           (insert (make-string tf/depth ?\t))
+           (if (tf/directory-branch-p item)
+               (progn
+                 (insert-text-button
+                  "►"
+                  'action
+                  (lambda (marker)
+                    (goto-char (marker-position marker))
+                    (tf/tab))
+                  )
+                 (insert " ")
+                 (insert-text-button (car item)
+                                     'action
+                                     (lambda (marker)
+                                       (goto-char (marker-position marker))
+                                       (setq default-directory
+                                             (tf/get-filename))
+                                       (revert-buffer))))
+             (insert-text-button (car item)
+                                 'action
+                                 (lambda (marker)
+                                   (goto-char (marker-position marker))
+                                   (find-file-other-window
+                                    (tf/get-filename)))))
+           (insert ?\n)
+           (when (cdr item)
+             (let ((tf/depth (1+ tf/depth)))
+               (tf/print-indented-tree item)))
+           ))
 
 (define-derived-mode tf/mode special-mode
   "Tree find"
