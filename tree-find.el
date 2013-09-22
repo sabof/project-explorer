@@ -2,6 +2,7 @@
 ;;; Version: 0.1
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/tree-find
+;;; Package-Requires: ((cl-lib "1.0") (es-lib "0.3"))
 
 ;;; Commentary:
 
