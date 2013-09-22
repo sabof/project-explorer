@@ -8,12 +8,15 @@
 
 (defvar tf/get-directory-files-method
   (if (executable-find "bash")
-    "find . \\( ! -path '*/.*' \\)"
-    (lambda (dir depth)
-      (cl-remove-if (lambda (name)
-                      (member (file-name-nondirectory name)
-                              '("." "..")))
-                    (directory-files dir t))))
+      "find . \\( ! -path '*/.*' \\)"
+    ;; (lambda (dir depth)
+    ;;   (cl-remove-if (lambda (name)
+    ;;                   (member (file-name-nondirectory name)
+    ;;                           '("." "..")))
+    ;;                 (directory-files dir t)))
+    (lambda (&rest ignore)
+      (error "This version of tree-find requires bash"))
+    )
   "The \"backend\" for tree-find.
   Can be a string, or a function.
 
@@ -360,7 +363,8 @@
                       (generate-new-buffer "*tree-find*")
                     (tf/mode)
                     (revert-buffer)
-                    (setq window-size-fixed 'width))))
+                    (setq window-size-fixed 'width)
+                    (current-buffer))))
         win )
     (setq win (split-window (frame-root-window)
                             (- (frame-width) 40) t))
