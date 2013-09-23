@@ -33,13 +33,13 @@
 (require 'cl-lib)
 (require 'es-lib)
 
-(defvar tf/process-and-args
-  (list "find" "."))
 (defvar tf/next-fringe nil)
 (defvar tf/current-fringe nil)
+
 (defvar tf/get-directory-files-method
   (if (executable-find "bash")
-      "find . \\( ! -path '*/.*' \\)"
+      "find . -depth \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
+    ;; "find . -depth -maxdepth 2 \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
     ;; (lambda (dir depth)
     ;;   (cl-remove-if (lambda (name)
     ;;                   (member (file-name-nondirectory name)
@@ -58,6 +58,11 @@
   files. It can also return nil - in which case you are on your
   own, as there will be no furhter processing. The arguments are
   the directory to scan, and depth. 0 means don't limit depth")
+
+(defun tf/add-trailing-slash-maybe (file)
+  (if (file-directory-p file)
+      (file-name-as-directory file)
+    file))
 
 (cl-defun tf/revert-buffer (&rest ignore)
   (let (( inhibit-read-only t)
@@ -104,13 +109,13 @@
                  (if (stringp output)
                      (split-string output "\n" t)
                    output)))
+         ;; ( marked-folders (tf/tree-mark-folders tree))
          ( compressed-folders
            (cons (car tree)
                  (mapcar 'tf/compress-tree (rest tree))))
-         ( marked-folders (tf/tree-mark-folders compressed-folders))
-         ( sorted-folder (tf/sort marked-folders)))
+         ( sorted-folder (tf/sort compressed-folders)))
     (erase-buffer)
-    (message "%s" tree)
+    ;; (message "%s" tree)
     ;; (insert "..\n")
     (tf/print-indented-tree sorted-folder)
     (font-lock-fontify-buffer)
@@ -119,33 +124,42 @@
 
 (defun tf/path-to-list (path)
   (let* (( normalized-path
-           (replace-regexp-in-string "\\\\" "/" path t t)))
-    (split-string normalized-path "/" t)))
+           (replace-regexp-in-string "\\\\" "/" path t t))
+         ( split-path (split-string normalized-path "/" t)))
+    (setq split-path
+          (mapcar (lambda (segment)
+                    (concat segment "/"))
+                  split-path))
+    (unless (string-match-p "/$" normalized-path)
+      (setcar (last split-path)
+              (substring (car (last split-path))
+                         0 (1- (length (car (last split-path)) )))))
+    split-path))
 
-(defun tf/tab-ending ()
-  (save-excursion
-    (goto-char (line-beginning-position))
-    (skip-chars-forward "\t")
-    (point)))
+  (defun tf/tab-ending ()
+    (save-excursion
+      (goto-char (line-beginning-position))
+      (skip-chars-forward "\t")
+      (point)))
 
-(defun tf/current-indnetation ()
-  (- (tf/tab-ending)
-     (line-beginning-position)))
+  (defun tf/current-indnetation ()
+    (- (tf/tab-ending)
+       (line-beginning-position)))
 
-(defun tf/paths-to-tree (paths)
-  (let* (( paths (mapcar 'tf/path-to-list paths))
-         ( add-member (lambda (what where)
-                        (setcdr where (cons what (cdr where)))
-                        what))
-         ( root (list nil))
-         head)
-    (cl-dolist (path paths)
-      (setq head root)
-      (cl-dolist (segment path)
-        (setq head (or (cl-find segment
-                                (rest head)
-                                :test 'equal
-                                :key 'car)
+  (defun tf/paths-to-tree (paths)
+    (let* (( paths (mapcar 'tf/path-to-list paths))
+           ( add-member (lambda (what where)
+                          (setcdr where (cons what (cdr where)))
+                          what))
+           ( root (list nil))
+           head)
+      (cl-dolist (path paths)
+        (setq head root)
+        (cl-dolist (segment path)
+          (setq head (or (cl-find segment
+                                  (rest head)
+                                  :test 'equal
+                                  :key 'car)
                        (funcall add-member
                                 (list segment)
                                 head)))))
@@ -154,7 +168,7 @@
     ))
 
 (defun tf/tree-mark-folders (branch)
-  (when (tf/directory-branch-p branch)
+  (when (file-directory-p (car branch))
     (setcar branch (concat (car branch) "/")))
   (mapc 'tf/tree-mark-folders (rest branch))
   branch)
@@ -166,7 +180,6 @@
                (cl-cadadr branch))
           (tf/compress-tree
            (cons (concat (car branch)
-                         "/"
                          (cl-caadr branch))
                  (cl-cdadr branch))))
         ( t (cons (car branch)
@@ -286,7 +299,7 @@
              (min (point)
                   (save-excursion
                     (goto-char (es-total-line-beginning))
-                    (if (re-search-forward "/\n")
+                    (if (re-search-forward "/\n" nil t)
                         (match-beginning 0)
                       most-positive-fixnum))))
            ( initial-indentation
@@ -353,7 +366,8 @@
       (tf/fold))))
 
 (defun tf/directory-branch-p (branch)
-  (rest branch))
+  (char-equal ?/
+              (aref (car branch) (1- (length (car branch))))))
 
 (defun tf/sort (branch)
   (let (( new-rest
