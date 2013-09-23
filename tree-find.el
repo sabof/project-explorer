@@ -35,7 +35,8 @@
 
 (defvar tf/process-and-args
   (list "find" "."))
-
+(defvar tf/next-fringe nil)
+(defvar tf/current-fringe nil)
 (defvar tf/get-directory-files-method
   (if (executable-find "bash")
       "find . \\( ! -path '*/.*' \\)"
@@ -434,6 +435,15 @@
       (when (file-directory-p result)
         (setq result (file-name-as-directory result)))
       result)))
+
+(defun tf/get-untraversed-nodes (tree)
+  (if (cdr tree)
+      (cl-reduce 'nconc
+                 (mapcar 'tf/get-untraversed-nodes
+                         (cdr tree)))
+    (when (string-match-p "/$" (car tree))
+      (list (car tree)))))
+
 
 (provide 'tree-find)
 ;;; tree-find.el ends here
