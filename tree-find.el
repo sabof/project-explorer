@@ -414,7 +414,7 @@
                     (current-buffer))))
         win )
     (setq win (split-window (frame-root-window)
-                            (- (frame-width) 40) t))
+                            (- (frame-width) 40) 'left))
     (set-window-parameter win 'window-side 'right)
     (set-window-buffer win buf)
     (set-window-dedicated-p win t)
