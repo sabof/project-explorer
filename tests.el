@@ -11,17 +11,17 @@
                         :test 'string-equal))))
 
 (ert-deftest tf/compress-tree ()
-  (let (( tree '("path0/"
-                 ("path1/"
+  (let (( tree '("path0"
+                 ("path1"
                   ;; Reverse ATM
-                  ("somefile2.js")
-                  ("somefile.js")
+                  "somefile2.js"
+                  "somefile.js"
                   ))))
     (should (tree-equal (tf/compress-tree tree)
-                        '("path0/path1/"
+                        '("path0/path1"
                           ;; Reverse ATM
-                          ("somefile2.js")
-                          ("somefile.js"))
+                          "somefile2.js"
+                          "somefile.js")
                         :test 'string-equal))))
 
 ;; (ert-deftest tf/tree-mark-folders ()
@@ -42,25 +42,28 @@
 
 (ert-deftest tf/sort ()
   (let* (( alist
-           '("root/"
+           '("root"
+             "file"
              ("node2")
              ("node1")
-             ("node3/"
-              ("subnode1/"
-               ("subnode3")
-               ("subnode2")))))
+             ("node3"
+              ("subnode1"
+               "subnode3"
+               "subnode2"))
+             ))
          ( result (tf/sort (copy-tree alist))))
-    (should (= 4 (length result)))
-    (should (= 2 (length (cadr result))))
-    (should (= 3 (length (cadadr result))))
+    ;; (should (= 4 (length result)))
+    ;; (should (= 2 (length (cadr result))))
+    ;; (should (= 3 (length (cadadr result))))
     (should (tree-equal result
-                        '("root/"
-                          ("node3/"
-                           ("subnode1/"
-                            ("subnode2")
-                            ("subnode3")))
+                        '("root"
                           ("node1")
-                          ("node2"))
+                          ("node2")
+                          ("node3"
+                           ("subnode1"
+                            "subnode2"
+                            "subnode3"))
+                          "file")
                         :test 'equal))
     ))
 
@@ -91,7 +94,3 @@
          (output (tf/path-to-list input))
          (expected-output (list "a/" "b/" "c/" "d/")))
     (should (equal output expected-output))))
-
-(ert-deftest tf/directory-branch-p ()
-  (should (tf/directory-branch-p '("abc/")))
-  (should-not (tf/directory-branch-p '("abc"))))

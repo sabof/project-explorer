@@ -61,11 +61,6 @@
   own, as there will be no furhter processing. The arguments are
   the directory to scan, and depth. 0 means don't limit depth")
 
-(defun tf/add-trailing-slash-maybe (file)
-  (if (file-directory-p file)
-      (file-name-as-directory file)
-    file))
-
 (cl-defun tf/revert-buffer (&rest ignore)
   (let (( inhibit-read-only t)
         ;; ( shell
@@ -84,215 +79,64 @@
         (when function-result
           (tf/find-output-to-tree function-result)))
       (cl-return-from tf/revert-buffer))
-    (let* (( output "")
-           ( buffer (current-buffer))
-           ( process
-             (start-process "tree-find"
-                            buffer "bash" "-c" tf/get-directory-files-method))
-           ( inhibit-read-only t))
-      (set-process-filter process
-                          (lambda (process string)
-                            (setq output (concat output string))))
-      (set-process-sentinel process
-                            (lambda (&rest ignore)
-                              (let ((inhibit-read-only t))
-                                (with-current-buffer buffer
-                                  (if (string-match-p "[^\n\t ]"
-                                                      output)
-                                      (tf/find-output-to-tree output)
-                                    (erase-buffer)
-                                    (insert "No files were found"))
-                                  (run-hooks)))))
-      )))
-
-(defun tf/find-output-to-tree (output)
-  ;; (setq tmp output)
-  (let* (( inhibit-read-only t)
-         ( tree (tf/paths-to-tree
-                 (if (stringp output)
-                     (split-string output "\n" t)
-                   output)))
-         ;; ( marked-folders (tf/tree-mark-folders tree))
-         ( compressed-folders
-           (cons (car tree)
-                 (mapcar 'tf/compress-tree (rest tree))))
-         ( sorted-folder (tf/sort compressed-folders)))
-    (erase-buffer)
-    ;; (message "%s" tree)
-    ;; (insert "..\n")
-    (tf/print-indented-tree sorted-folder)
-    (font-lock-fontify-buffer)
-    (goto-char (point-min))
-    (tf/show-first-only) ))
-
-(defun tf/path-to-list (path)
-  (let* (( normalized-path
-           (replace-regexp-in-string "\\\\" "/" path t t))
-         ( split-path (split-string normalized-path "/" t)))
-    (setq split-path
-          (mapcar (lambda (segment)
-                    (concat segment "/"))
-                  split-path))
-    (unless (string-match-p "/$" normalized-path)
-      (setcar (last split-path)
-              (substring (car (last split-path))
-                         0 (1- (length (car (last split-path)) )))))
-    split-path))
-
-(defun tf/tab-ending ()
-  (save-excursion
-    (goto-char (line-beginning-position))
-    (skip-chars-forward "\t")
-    (point)))
-
-(defun tf/current-indnetation ()
-  (- (tf/tab-ending)
-     (line-beginning-position)))
-
-(defun tf/paths-to-tree (paths)
-  (let* (( paths (mapcar 'tf/path-to-list paths))
-         ( add-member (lambda (what where)
-                        (setcdr where (cons what (cdr where)))
-                        what))
-         ( root (list nil))
-         head)
-    (cl-dolist (path paths)
-      (setq head root)
-      (cl-dolist (segment path)
-        (setq head (or (cl-find segment
-                                (rest head)
-                                :test 'equal
-                                :key 'car)
-                       (funcall add-member
-                                (list segment)
-                                head)))))
-    (cadr root)
-    ;; (cdr root)
-    ))
-
-(defun tf/tree-mark-folders (branch)
-  (when (file-directory-p (car branch))
-    (setcar branch (concat (car branch) "/")))
-  (mapc 'tf/tree-mark-folders (rest branch))
-  branch)
+    (error "Unimplemented")))
 
 (cl-defun tf/compress-tree (branch)
-  (cond ( (= (length branch) 1)
+  (cond ( (not (consp branch))
+          branch)
+        ( (= (length branch) 1)
           branch)
         ( (and (= (length branch) 2)
                (cl-cadadr branch))
           (tf/compress-tree
-           (cons (concat (car branch)
-                         (cl-caadr branch))
+           (cons (concat (car branch) "/" (cl-caadr branch))
                  (cl-cdadr branch))))
         ( t (cons (car branch)
                   (mapcar 'tf/compress-tree (cdr branch))))))
+
+(cl-defun tf/sort (branch)
+  (when (stringp branch)
+    (cl-return-from tf/sort branch))
+  (let (( new-rest
+          (sort (rest branch)
+                (lambda (a b)
+                  (cond ( (and (consp a)
+                               (stringp b))
+                          t)
+                        ( (and (stringp a)
+                               (consp b))
+                          nil)
+                        ( (and (consp a) (consp b))
+                          (string< (car a) (car b)))
+                        ( t (string< a b)))))))
+    (setcdr branch (mapcar 'tf/sort new-rest))
+    branch
+    ))
 
 (cl-defun tf/print-indented-tree (branch &optional (depth 0))
   (cl-loop for item in (cdr branch)
            for counter = 0 then (1+ counter)
            do
            (insert (make-string depth ?\t))
-           (insert (car item))
+           (insert (if (consp item)
+                       (car item)
+                     item))
            (insert ?\n)
-           (when (cdr item)
+           (when (consp item)
              (tf/print-indented-tree item (1+ depth)))
            ))
 
-(defun tf/up-directory ()
-  (interactive)
-  (setq default-directory
-        (file-name-directory
-         (directory-file-name
-          default-directory)))
-  (revert-buffer))
+;;; TEXT ->
 
-(define-derived-mode tf/mode special-mode
-  "Tree find"
-  "Display results of find as a folding tree"
-  (setq-local revert-buffer-function
-              'tf/revert-buffer)
-  (setq-local tab-width 2)
-  (es-define-keys tf/mode-map
-    (kbd "u") 'tf/up-element
-    (kbd "f") 'tf/find-directory
-    (kbd "<tab>") 'tf/tab
-    (kbd "M-}") 'tf/forward-element
-    (kbd "M-{") 'tf/backward-element
-    (kbd "n") 'tf/forward-element
-    (kbd "p") 'tf/backward-element
-    ;; (kbd "^") 'tf/up-directory
-    (kbd "<return>") 'tf/return
-    (kbd "<mouse-2>") 'tf/middle-click
-    (kbd "q") 'tf/quit
-    (kbd "s") 'isearch-forward
-    (kbd "r") 'isearch-backward
-    )
-  (font-lock-add-keywords 'tf/mode
-                          '(("^.+/$" (0 'dired-directory append)))))
+(defun tf/current-indnetation ()
+  (- (tf/tab-ending)
+     (line-beginning-position)))
 
-(defun tf/folded-p ()
-  (let (( ovs (overlays-in (es-total-line-beginning-position)
-                           (es-total-line-end-position))))
-    (cl-some (lambda (ov)
-               (overlay-get ov 'is-tf-hider))
-             ovs)))
-
-(defun tf/quit ()
-  (interactive)
-  (let ((window (selected-window)))
-    (quit-window)
-    (when (window-live-p window)
-      (delete-window))))
-
-(defun tf/forward-element (&optional arg)
-  (interactive "p")
-  (setq arg (or arg 1))
-  (let* (( initial-indentation
-           (es-current-character-indentation))
-         ( regex (format "^\t\\{0,%s\\}[^\t\n]"
-                         initial-indentation)))
-    (if (cl-minusp arg)
-        (goto-char (line-beginning-position))
-      (goto-char (line-end-position)))
-    (when (re-search-forward regex nil t arg)`
-      (goto-char (match-end 0))
-      (forward-char -1)
-      )))
-
-(defun tf/backward-element (&optional arg)
-  (interactive "p")
-  (setq arg (or arg 1))
-  (tf/forward-element (- arg)))
-
-(defun tf/middle-click (event)
-  (interactive "e")
-  (mouse-set-point event)
-  (tf/return))
-
-(defun tf/return ()
-  (interactive)
-  (let ((file-name (tf/get-filename)))
-    (if (file-directory-p file-name)
-        (tf/tab)
-      (with-selected-window (cadr (window-list))
-        (find-file file-name)))))
-
-(defun tf/find-directory (dir)
-  (interactive
-   (let ((file-name (tf/get-filename)))
-     (list (read-file-name
-            "Set directory to: "
-            (if (file-directory-p file-name)
-                file-name
-              (file-name-directory
-               (directory-file-name
-                file-name)))))))
-  (when (file-directory-p dir)
-    (setq dir (file-name-as-directory dir)))
-  (setq default-directory dir)
-  (revert-buffer)
-  )
+(defun tf/tab-ending ()
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (skip-chars-forward "\t")
+    (point)))
 
 (cl-defun tf/unfold (expanded)
   (interactive "P")
@@ -367,59 +211,66 @@
     (while (re-search-forward "^[^\t]" nil t)
       (tf/fold))))
 
-(defun tf/directory-branch-p (branch)
-  (char-equal ?/
-              (aref (car branch) (1- (length (car branch))))))
+(defun tf/up-directory ()
+  (interactive)
+  (setq default-directory
+        (file-name-directory
+         (directory-file-name
+          default-directory)))
+  (revert-buffer))
 
-(defun tf/sort (branch)
-  (let (( new-rest
-          (sort (rest branch)
-                (lambda (a b)
-                  (cond ( (and (tf/directory-branch-p a)
-                               (not (tf/directory-branch-p b)))
-                          t)
-                        ( (and (not (tf/directory-branch-p a))
-                               (tf/directory-branch-p b))
-                          nil)
-                        ( t (string< (car a) (car b))))))))
-    (setcdr branch (mapcar 'tf/sort new-rest))
-    branch
-    ))
+(defun tf/folded-p ()
+  (let (( ovs (overlays-in (es-total-line-beginning-position)
+                           (es-total-line-end-position))))
+    (cl-some (lambda (ov)
+               (overlay-get ov 'is-tf-hider))
+             ovs)))
+
+(defun tf/quit ()
+  (interactive)
+  (let ((window (selected-window)))
+    (quit-window)
+    (when (window-live-p window)
+      (delete-window))))
+
+(defun tf/forward-element (&optional arg)
+  (interactive "p")
+  (setq arg (or arg 1))
+  (let* (( initial-indentation
+           (es-current-character-indentation))
+         ( regex (format "^\t\\{0,%s\\}[^\t\n]"
+                         initial-indentation)))
+    (if (cl-minusp arg)
+        (goto-char (line-beginning-position))
+      (goto-char (line-end-position)))
+    (when (re-search-forward regex nil t arg)`
+      (goto-char (match-end 0))
+      (forward-char -1)
+      )))
+
+(defun tf/backward-element (&optional arg)
+  (interactive "p")
+  (setq arg (or arg 1))
+  (tf/forward-element (- arg)))
+
+(defun tf/middle-click (event)
+  (interactive "e")
+  (mouse-set-point event)
+  (tf/return))
+
+(defun tf/return ()
+  (interactive)
+  (let ((file-name (tf/get-filename)))
+    (if (file-directory-p file-name)
+        (tf/tab)
+      (with-selected-window (cadr (window-list))
+        (find-file file-name)))))
 
 (defun tf/tab (&optional arg)
   (interactive "P")
   (if (tf/folded-p)
       (tf/unfold arg)
     (tf/fold)))
-
-(cl-defun tree-find-open ()
-  (interactive)
-  (catch 'exit
-    (let* (( buf (or (get-buffer "*tree-find*")
-                     (throw 'exit nil)))
-           ( win (or (get-window-with-predicate
-                      (lambda (win)
-                        (eq (window-buffer win)
-                            (get-buffer "*tree-find*")))
-                      (window-list))
-                     (throw 'exit nil))))
-      (select-window win)
-      (cl-return-from tree-find-open)))
-  (let (( buf (or (get-buffer "*tree-find*")
-                  (with-current-buffer
-                      (generate-new-buffer "*tree-find*")
-                    (tf/mode)
-                    (revert-buffer)
-                    (setq window-size-fixed 'width)
-                    (current-buffer))))
-        win )
-    (setq win (split-window (frame-root-window)
-                            (- (frame-width) 40) 'left))
-    (set-window-parameter win 'window-side 'right)
-    (set-window-buffer win buf)
-    (set-window-dedicated-p win t)
-    (select-window win)
-    ))
 
 (defun tf/up-element ()
   (interactive)
@@ -452,13 +303,76 @@
         (setq result (file-name-as-directory result)))
       result)))
 
-(defun tf/get-untraversed-nodes (tree)
-  (if (cdr tree)
-      (cl-reduce 'nconc
-                 (mapcar 'tf/get-untraversed-nodes
-                         (cdr tree)))
-    (when (string-match-p "/$" (car tree))
-      (list (car tree)))))
+(defun tf/find-directory (dir)
+  (interactive
+   (let ((file-name (tf/get-filename)))
+     (list (read-file-name
+            "Set directory to: "
+            (if (file-directory-p file-name)
+                file-name
+              (file-name-directory
+               (directory-file-name
+                file-name)))))))
+  (when (file-directory-p dir)
+    (setq dir (file-name-as-directory dir)))
+  (setq default-directory dir)
+  (revert-buffer)
+  )
+
+(define-derived-mode tf/mode special-mode
+  "Tree find"
+  "Display results of find as a folding tree"
+  (setq-local revert-buffer-function
+              'tf/revert-buffer)
+  (setq-local tab-width 2)
+  (es-define-keys tf/mode-map
+    (kbd "u") 'tf/up-element
+    (kbd "f") 'tf/find-directory
+    (kbd "<tab>") 'tf/tab
+    (kbd "M-}") 'tf/forward-element
+    (kbd "M-{") 'tf/backward-element
+    (kbd "n") 'tf/forward-element
+    (kbd "p") 'tf/backward-element
+    ;; (kbd "^") 'tf/up-directory
+    (kbd "<return>") 'tf/return
+    (kbd "<mouse-2>") 'tf/middle-click
+    (kbd "q") 'tf/quit
+    (kbd "s") 'isearch-forward
+    (kbd "r") 'isearch-backward
+    )
+  (font-lock-add-keywords 'tf/mode
+                          '(("^.+/$" (0 'dired-directory append)))))
+
+;;; Interface
+
+(cl-defun tree-find-open ()
+  (interactive)
+  (catch 'exit
+    (let* (( buf (or (get-buffer "*tree-find*")
+                     (throw 'exit nil)))
+           ( win (or (get-window-with-predicate
+                      (lambda (win)
+                        (eq (window-buffer win)
+                            (get-buffer "*tree-find*")))
+                      (window-list))
+                     (throw 'exit nil))))
+      (select-window win)
+      (cl-return-from tree-find-open)))
+  (let (( buf (or (get-buffer "*tree-find*")
+                  (with-current-buffer
+                      (generate-new-buffer "*tree-find*")
+                    (tf/mode)
+                    (revert-buffer)
+                    (setq window-size-fixed 'width)
+                    (current-buffer))))
+        win )
+    (setq win (split-window (frame-root-window)
+                            (- (frame-width) 40) 'left))
+    (set-window-parameter win 'window-side 'right)
+    (set-window-buffer win buf)
+    (set-window-dedicated-p win t)
+    (select-window win)
+    ))
 
 (provide 'tree-find)
 ;;; tree-find.el ends here
