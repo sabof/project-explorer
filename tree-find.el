@@ -37,17 +37,19 @@
 (defvar tf/current-fringe nil)
 
 (defvar tf/get-directory-files-method
-  (if (executable-find "bash")
-      "find . -depth \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
-    ;; "find . -depth -maxdepth 2 \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
-    ;; (lambda (dir depth)
-    ;;   (cl-remove-if (lambda (name)
-    ;;                   (member (file-name-nondirectory name)
-    ;;                           '("." "..")))
-    ;;                 (directory-files dir t)))
-    (lambda (&rest ignore)
-      (error "This version of tree-find requires bash"))
-    )
+  (lambda (dir &rest ignore)
+    (dir-cache-get-dir dir))
+  ;; (if (executable-find "bash")
+  ;;     "find . -depth \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
+  ;;   ;; "find . -depth -maxdepth 2 \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
+  ;;   ;; (lambda (dir depth)
+  ;;   ;;   (cl-remove-if (lambda (name)
+  ;;   ;;                   (member (file-name-nondirectory name)
+  ;;   ;;                           '("." "..")))
+  ;;   ;;                 (directory-files dir t)))
+  ;;   (lambda (&rest ignore)
+  ;;     (error "This version of tree-find requires bash"))
+  ;;   )
   "The \"backend\" for tree-find.
   Can be a string, or a function \(WIP\).
 
@@ -99,7 +101,8 @@
                                                       output)
                                       (tf/find-output-to-tree output)
                                     (erase-buffer)
-                                    (insert "No files were found"))))))
+                                    (insert "No files were found"))
+                                  (run-hooks)))))
       )))
 
 (defun tf/find-output-to-tree (output)
@@ -136,30 +139,30 @@
                          0 (1- (length (car (last split-path)) )))))
     split-path))
 
-  (defun tf/tab-ending ()
-    (save-excursion
-      (goto-char (line-beginning-position))
-      (skip-chars-forward "\t")
-      (point)))
+(defun tf/tab-ending ()
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (skip-chars-forward "\t")
+    (point)))
 
-  (defun tf/current-indnetation ()
-    (- (tf/tab-ending)
-       (line-beginning-position)))
+(defun tf/current-indnetation ()
+  (- (tf/tab-ending)
+     (line-beginning-position)))
 
-  (defun tf/paths-to-tree (paths)
-    (let* (( paths (mapcar 'tf/path-to-list paths))
-           ( add-member (lambda (what where)
-                          (setcdr where (cons what (cdr where)))
-                          what))
-           ( root (list nil))
-           head)
-      (cl-dolist (path paths)
-        (setq head root)
-        (cl-dolist (segment path)
-          (setq head (or (cl-find segment
-                                  (rest head)
-                                  :test 'equal
-                                  :key 'car)
+(defun tf/paths-to-tree (paths)
+  (let* (( paths (mapcar 'tf/path-to-list paths))
+         ( add-member (lambda (what where)
+                        (setcdr where (cons what (cdr where)))
+                        what))
+         ( root (list nil))
+         head)
+    (cl-dolist (path paths)
+      (setq head root)
+      (cl-dolist (segment path)
+        (setq head (or (cl-find segment
+                                (rest head)
+                                :test 'equal
+                                :key 'car)
                        (funcall add-member
                                 (list segment)
                                 head)))))
@@ -226,8 +229,7 @@
     (kbd "r") 'isearch-backward
     )
   (font-lock-add-keywords 'tf/mode
-                          '(("^.+/$" (0 'dired-directory append))
-                            t)))
+                          '(("^.+/$" (0 'dired-directory append)))))
 
 (defun tf/folded-p ()
   (let (( ovs (overlays-in (es-total-line-beginning-position)
@@ -457,7 +459,6 @@
                          (cdr tree)))
     (when (string-match-p "/$" (car tree))
       (list (car tree)))))
-
 
 (provide 'tree-find)
 ;;; tree-find.el ends here

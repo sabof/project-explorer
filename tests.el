@@ -7,8 +7,7 @@
                           ("path1/"
                            ;; Reverse ATM
                            ("somefile2.js")
-                           ("somefile.js")
-                           ))
+                           ("somefile.js")))
                         :test 'string-equal))))
 
 (ert-deftest tf/compress-tree ()
@@ -22,8 +21,7 @@
                         '("path0/path1/"
                           ;; Reverse ATM
                           ("somefile2.js")
-                          ("somefile.js")
-                          )
+                          ("somefile.js"))
                         :test 'string-equal))))
 
 ;; (ert-deftest tf/tree-mark-folders ()
@@ -62,8 +60,7 @@
                             ("subnode2")
                             ("subnode3")))
                           ("node1")
-                          ("node2")
-                          )
+                          ("node2"))
                         :test 'equal))
     ))
 
