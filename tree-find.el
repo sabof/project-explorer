@@ -349,9 +349,10 @@
 (cl-defun tree-find-open ()
   (interactive)
   (let* (( project-root (funcall tf/project-root-function))
+         ( tree-find-buffers (tf/get-tree-find-buffers))
          ( project-tree-find-existing-buffer
            (cl-find project-root
-                    (tf/get-tree-find-buffers)
+                    tree-find-buffers
                     :key (lambda (project-tree-find-buffer)
                            (with-current-buffer project-tree-find-buffer
                              default-directory))
@@ -372,9 +373,15 @@
                  (revert-buffer)
                  (setq window-size-fixed 'width)
                  (current-buffer)))))
+
     (when tree-find-window
       (select-window tree-find-window)
       (cl-return-from tree-find-open))
+
+    (cl-dolist (window (window-list))
+      (and (memq (window-buffer window) tree-find-buffers)
+           (> (length (window-list)) 1)
+           (delete-window window)))
 
     (setq tree-find-window (split-window (frame-root-window)
                                          (- (frame-width) 40) 'left))
