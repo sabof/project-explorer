@@ -35,21 +35,8 @@
 
 (defvar tf/next-fringe nil)
 (defvar tf/current-fringe nil)
-
 (defvar tf/get-directory-files-method
-  (lambda (dir &rest ignore)
-    (dir-cache-get-dir dir))
-  ;; (if (executable-find "bash")
-  ;;     "find . -depth \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
-  ;;   ;; "find . -depth -maxdepth 2 \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
-  ;;   ;; (lambda (dir depth)
-  ;;   ;;   (cl-remove-if (lambda (name)
-  ;;   ;;                   (member (file-name-nondirectory name)
-  ;;   ;;                           '("." "..")))
-  ;;   ;;                 (directory-files dir t)))
-  ;;   (lambda (&rest ignore)
-  ;;     (error "This version of tree-find requires bash"))
-  ;;   )
+  'tf/get-directory-files-dir-cache
   "The \"backend\" for tree-find.
   Can be a string, or a function \(WIP\).
 
@@ -61,25 +48,21 @@
   own, as there will be no furhter processing. The arguments are
   the directory to scan, and depth. 0 means don't limit depth")
 
+(defun tf/get-directory-files-dir-cache (dir done-func)
+  (funcall done-func (dir-cache-get-dir dir)))
+
 (cl-defun tf/revert-buffer (&rest ignore)
-  (let (( inhibit-read-only t)
-        ;; ( shell
-        ;;   (or explicit-shell-file-name
-        ;;       (getenv "ESHELL")
-        ;;       shell-file-name))
-        )
+  (let (( inhibit-read-only t))
     (erase-buffer)
     (delete-all-overlays)
     (insert "Searching for files...")
-    (when (functionp tf/get-directory-files-method)
-      (let (( function-result
-              (funcall tf/get-directory-files-method
-                       default-directory
-                       0)))
-        (when function-result
-          (tf/find-output-to-tree function-result)))
-      (cl-return-from tf/revert-buffer))
-    (error "Unimplemented")))
+    (let (( function-result
+            (funcall tf/get-directory-files-method
+                     default-directory
+                     (lambda (result)
+                       (when result
+                         (tf/find-output-to-tree result))))))
+      )))
 
 (cl-defun tf/compress-tree (branch)
   (cond ( (not (consp branch))
@@ -113,18 +96,17 @@
     branch
     ))
 
-(cl-defun tf/print-indented-tree (branch &optional (depth 0))
-  (cl-loop for item in (cdr branch)
-           for counter = 0 then (1+ counter)
-           do
-           (insert (make-string depth ?\t))
-           (insert (if (consp item)
-                       (car item)
-                     item))
-           (insert ?\n)
-           (when (consp item)
-             (tf/print-indented-tree item (1+ depth)))
-           ))
+(cl-defun tf/print-indented-tree (branch &optional (depth -1))
+  (cond ( (stringp branch)
+          (insert (make-string depth ?\t)
+                  branch
+                  ?\n))
+        ( t (when (>= depth 0)
+              (insert (make-string depth ?\t)
+                      (car branch) "/"
+                      ?\n))
+            (cl-dolist (item (rest branch))
+              (tf/print-indented-tree item (1+ depth))))))
 
 ;;; TEXT ->
 

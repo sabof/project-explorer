@@ -1,15 +1,3 @@
-(ert-deftest tf/paths-to-tree ()
-  (let (( sample-paths
-          (list "./path1/somefile.js"
-                "./path1/somefile2.js")))
-    (should (tree-equal (tf/paths-to-tree sample-paths)
-                        '("./"
-                          ("path1/"
-                           ;; Reverse ATM
-                           ("somefile2.js")
-                           ("somefile.js")))
-                        :test 'string-equal))))
-
 (ert-deftest tf/compress-tree ()
   (let (( tree '("path0"
                  ("path1"
@@ -24,22 +12,6 @@
                           "somefile.js")
                         :test 'string-equal))))
 
-;; (ert-deftest tf/tree-mark-folders ()
-;;   (let (( tree (list "."
-;;                      (list "path1"
-;;                            ;; Reverse ATM
-;;                            (list "somefile2.js")
-;;                            (list "somefile.js")
-;;                            ))))
-;;     (should (tree-equal (tf/tree-mark-folders tree)
-;;                         '("./"
-;;                           ("path1/"
-;;                            ;; Reverse ATM
-;;                            ("somefile2.js")
-;;                            ("somefile.js")
-;;                            ))
-;;                         :test 'string-equal))))
-
 (ert-deftest tf/sort ()
   (let* (( alist
            '("root"
@@ -52,9 +24,6 @@
                "subnode2"))
              ))
          ( result (tf/sort (copy-tree alist))))
-    ;; (should (= 4 (length result)))
-    ;; (should (= 2 (length (cadr result))))
-    ;; (should (= 3 (length (cadadr result))))
     (should (tree-equal result
                         '("root"
                           ("node1")
@@ -67,23 +36,28 @@
                         :test 'equal))
     ))
 
-(ert-deftest tf/get-untraversed-nodes ()
+(ert-deftest tf/print-indented-tree ()
   (let* (( tree '("root"
-                  ("node2/")
+                  ("node2")
                   ("node1")
                   ("node3"
                    ("subnode1"
-                    ("subnode3/")
+                    ("subnode3")
                     ("subnode2")))))
-         ( expected-result '("subnode3/" "node2/"))
-         ( result (tf/get-untraversed-nodes tree)))
-    (should (= (length expected-result)
-               (length result)
-               ))
-    (should (= (length expected-result)
-               (length (cl-intersection result
-                                        expected-result
-                                        :test 'string-equal))))))
+         ( expected-result
+           "node2/
+node1/
+node3/
+\tsubnode1/
+\t\tsubnode3/
+\t\tsubnode2/
+")
+         ( result
+           (with-temp-buffer
+             (tf/print-indented-tree tree)
+             (buffer-string))))
+    (should (string-equal expected-result
+                          result))))
 
 (ert-deftest tf/path-to-list ()
   (let* ((input "/a/b/c/d")
