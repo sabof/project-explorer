@@ -32,6 +32,7 @@
 
 (require 'cl-lib)
 (require 'es-lib)
+(require 'dir-cache nil t)
 
 (defvar tf/next-fringe nil)
 (defvar tf/current-fringe nil)
@@ -52,7 +53,8 @@
   (funcall done-func (dir-cache-get-dir dir)))
 
 (cl-defun tf/revert-buffer (&rest ignore)
-  (let (( inhibit-read-only t))
+  (let ((inhibit-read-only t)
+        (tree-find-buffer (current-buffer)))
     (erase-buffer)
     (delete-all-overlays)
     (insert "Searching for files...")
@@ -61,7 +63,15 @@
                      default-directory
                      (lambda (result)
                        (when result
-                         (tf/find-output-to-tree result))))))
+                         (with-current-buffer tree-find-buffer
+                           (let ((inhibit-read-only t))
+                             (erase-buffer)
+                             (tf/print-indented-tree
+                              (tf/compress-tree
+                               (tf/sort result)))
+                             (tf/show-first-only)
+                             (goto-char (point-min)))
+                           ))))))
       )))
 
 (cl-defun tf/compress-tree (branch)
@@ -70,7 +80,7 @@
         ( (= (length branch) 1)
           branch)
         ( (and (= (length branch) 2)
-               (cl-cadadr branch))
+               (consp (cl-second branch)))
           (tf/compress-tree
            (cons (concat (car branch) "/" (cl-caadr branch))
                  (cl-cdadr branch))))
@@ -322,8 +332,8 @@
     (kbd "s") 'isearch-forward
     (kbd "r") 'isearch-backward
     )
-  (font-lock-add-keywords 'tf/mode
-                          '(("^.+/$" (0 'dired-directory append)))))
+  (font-lock-add-keywords
+   'tf/mode '(("^.+/$" (0 'dired-directory append)))))
 
 ;;; Interface
 
@@ -356,5 +366,5 @@
     (select-window win)
     ))
 
-(provide 'tree-find)
+
 ;;; tree-find.el ends here
