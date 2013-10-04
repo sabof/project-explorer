@@ -36,7 +36,7 @@
 
 (defvar tf/next-fringe nil)
 (defvar tf/current-fringe nil)
-(defvar tf/get-directory-files-method
+(defvar tf/directory-files-function
   'tf/get-directory-files-dir-cache
   "The \"backend\" for tree-find.
   Can be a string, or a function \(WIP\).
@@ -49,8 +49,17 @@
   own, as there will be no furhter processing. The arguments are
   the directory to scan, and depth. 0 means don't limit depth")
 
+(defvar tf/project-root-function
+  (lambda ()
+    (if (fboundp 'projectile-project-root)
+        (projectile-project-root)
+      (locate-dominating-file ".git"))))
+
 (defun tf/get-directory-files-dir-cache (dir done-func)
   (funcall done-func (dir-cache-get-dir dir)))
+
+(defun tf/get-tree-find-buffers ()
+  (es-buffers-with-mode 'tf/mode))
 
 (cl-defun tf/revert-buffer (&rest ignore)
   (let ((inhibit-read-only t)
@@ -59,7 +68,7 @@
     (delete-all-overlays)
     (insert "Searching for files...")
     (let (( function-result
-            (funcall tf/get-directory-files-method
+            (funcall tf/directory-files-function
                      default-directory
                      (lambda (result)
                        (when result
@@ -339,31 +348,40 @@
 
 (cl-defun tree-find-open ()
   (interactive)
-  (catch 'exit
-    (let* (( buf (or (get-buffer "*tree-find*")
-                     (throw 'exit nil)))
-           ( win (or (get-window-with-predicate
-                      (lambda (win)
-                        (eq (window-buffer win)
-                            (get-buffer "*tree-find*")))
-                      (window-list))
-                     (throw 'exit nil))))
-      (select-window win)
-      (cl-return-from tree-find-open)))
-  (let (( buf (or (get-buffer "*tree-find*")
-                  (with-current-buffer
-                      (generate-new-buffer "*tree-find*")
-                    (tf/mode)
-                    (revert-buffer)
-                    (setq window-size-fixed 'width)
-                    (current-buffer))))
-        win )
-    (setq win (split-window (frame-root-window)
-                            (- (frame-width) 40) 'left))
-    (set-window-parameter win 'window-side 'right)
-    (set-window-buffer win buf)
-    (set-window-dedicated-p win t)
-    (select-window win)
+  (let* (( project-root (funcall tf/project-root-function))
+         ( project-tree-find-existing-buffer
+           (cl-find project-root
+                    (tf/get-tree-find-buffers)
+                    :key (lambda (project-tree-find-buffer)
+                           (with-current-buffer project-tree-find-buffer
+                             default-directory))
+                    :test 'string-equal))
+         ( tree-find-window
+           (and project-tree-find-existing-buffer
+                (get-window-with-predicate
+                 (lambda (tree-find-window)
+                   (eq (window-buffer tree-find-window)
+                       project-tree-find-existing-buffer))
+                 (window-list))))
+         ( project-tree-find-buffer
+           (or project-tree-find-existing-buffer
+               (with-current-buffer
+                   (generate-new-buffer "*tree-find*")
+                 (tf/mode)
+                 (setq default-directory project-root)
+                 (revert-buffer)
+                 (setq window-size-fixed 'width)
+                 (current-buffer)))))
+    (when tree-find-window
+      (select-window tree-find-window)
+      (cl-return-from tree-find-open))
+
+    (setq tree-find-window (split-window (frame-root-window)
+                                         (- (frame-width) 40) 'left))
+    (set-window-parameter tree-find-window 'window-side 'right)
+    (set-window-buffer tree-find-window project-tree-find-buffer)
+    (set-window-dedicated-p tree-find-window t)
+    (select-window tree-find-window)
     ))
 
 
