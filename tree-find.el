@@ -38,6 +38,11 @@
 (defvar tf/current-fringe nil)
 (defvar tf/directory-files-function
   'tf/get-directory-files-dir-cache)
+(defvar tf/side 'left)
+(defvar tf/width 40)
+(defvar tf/omit t)
+(defvar tf/omit-regex
+  "^\\.[^\\.]\\|^#")
 
 (defvar tf/project-root-function
   (lambda ()
@@ -68,10 +73,16 @@
                              (tf/print-indented-tree
                               (tf/compress-tree
                                (tf/sort result)))
+                             (font-lock-fontify-buffer)
                              (tf/show-first-only)
                              (goto-char (point-min)))
                            ))))))
       )))
+
+(defun tf/file-interesting-p (name)
+  (if tf/omit
+      (not (string-match-p tf/omit-regex name))
+    t))
 
 (cl-defun tf/compress-tree (branch)
   (cond ( (not (consp branch))
@@ -107,15 +118,18 @@
 
 (cl-defun tf/print-indented-tree (branch &optional (depth -1))
   (cond ( (stringp branch)
-          (insert (make-string depth ?\t)
-                  branch
-                  ?\n))
-        ( t (when (>= depth 0)
-              (insert (make-string depth ?\t)
-                      (car branch) "/"
-                      ?\n))
-            (cl-dolist (item (rest branch))
-              (tf/print-indented-tree item (1+ depth))))))
+          (when (tf/file-interesting-p branch)
+            (insert (make-string depth ?\t)
+                    branch
+                    ?\n)))
+        ( t (when (or (> 0 depth)
+                      (tf/file-interesting-p (car branch)))
+              (when (>= depth 0)
+                (insert (make-string depth ?\t)
+                        (car branch) "/"
+                        ?\n))
+              (cl-dolist (item (rest branch))
+                (tf/print-indented-tree item (1+ depth)))))))
 
 ;;; TEXT ->
 
@@ -372,9 +386,8 @@
       (and (memq (window-buffer window) tree-find-buffers)
            (> (length (window-list)) 1)
            (delete-window window)))
-
     (setq tree-find-window (split-window (frame-root-window)
-                                         (- (frame-width) 40) 'left))
+                                         (- (frame-width) tf/width) 'left))
     (set-window-parameter tree-find-window 'window-side 'right)
     (set-window-buffer tree-find-window project-tree-find-buffer)
     (set-window-dedicated-p tree-find-window t)
