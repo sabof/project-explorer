@@ -163,10 +163,7 @@
                        'is-tf-hider t)
       (unless expanded
         (while (re-search-forward
-                (concat "^"
-                        (make-string (1+ initial-indentation)
-                                     ?\t )
-                        "[^\t\n].*/$")
+                (format "^\t\\{%s\\}[^\t\n].*/$" (1+ initial-indentation))
                 end
                 t)
           (tf/fold)))
