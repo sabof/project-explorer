@@ -37,26 +37,16 @@
 (defvar tf/next-fringe nil)
 (defvar tf/current-fringe nil)
 (defvar tf/directory-files-function
-  'tf/get-directory-files-dir-cache
-  "The \"backend\" for tree-find.
-  Can be a string, or a function \(WIP\).
-
-  The string will be executed in bash, and it's output should be a
-  list of files separated by newlines.
-
-  The fucntion takes 2 arguments, and should return a list of
-  files. It can also return nil - in which case you are on your
-  own, as there will be no furhter processing. The arguments are
-  the directory to scan, and depth. 0 means don't limit depth")
+  'tf/get-directory-files-dir-cache)
 
 (defvar tf/project-root-function
   (lambda ()
     (if (fboundp 'projectile-project-root)
         (projectile-project-root)
-      (locate-dominating-file ".git"))))
+      (locate-dominating-file default-directory ".git"))))
 
 (defun tf/get-directory-files-dir-cache (dir done-func)
-  (funcall done-func (dir-cache-get-dir dir)))
+  (funcall done-func (dir-cache-get-dir dir current-prefix-arg)))
 
 (defun tf/get-tree-find-buffers ()
   (es-buffers-with-mode 'tf/mode))
@@ -244,7 +234,7 @@
     (if (cl-minusp arg)
         (goto-char (line-beginning-position))
       (goto-char (line-end-position)))
-    (when (re-search-forward regex nil t arg)`
+    (when (re-search-forward regex nil t arg)
       (goto-char (match-end 0))
       (forward-char -1)
       )))
@@ -391,5 +381,5 @@
     (select-window tree-find-window)
     ))
 
-
+(provide 'tree-find)
 ;;; tree-find.el ends here

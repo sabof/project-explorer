@@ -162,6 +162,28 @@ node3/
          (expected-output (list "a/" "b/" "c/" "d/")))
     (should (equal output expected-output))))
 
+(ert-deftest tf/forward-element ()
+  (with-temp-buffer
+    (insert "	index1
+	index2
+dir-cache.el
+tests.el
+")
+
+    (goto-char (point-min))
+    (tf/forward-element)
+    (should (= 2 (line-number-at-pos)))
+    (let ((ori-point (point)))
+      (back-to-indentation)
+      (should (= (point) ori-point)))
+
+    (goto-char (1- (point-max)))
+    (tf/forward-element -1)
+    (should (= 3 (line-number-at-pos)))
+    (let ((ori-point (point)))
+      (back-to-indentation)
+      (should (= (point) ori-point)))))
+
 (defun tf/integration-test ()
   (let (( tf/get-directory-files-method
           (lambda (dir func)
