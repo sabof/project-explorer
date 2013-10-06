@@ -157,8 +157,7 @@
              (es-current-character-indentation))
            ( end (save-excursion
                    (or (tf/forward-element)
-                       (goto-char (point-max)))
-                   (point))))
+                       (point-max)))))
       (remove-overlays (es-total-line-beginning-position)
                        (es-total-line-end-position)
                        'is-tf-hider t)
@@ -167,7 +166,7 @@
                 (concat "^"
                         (make-string (1+ initial-indentation)
                                      ?\t )
-                        "[^\t\n]")
+                        "[^\t\n].*/$")
                 end
                 t)
           (tf/fold)))
@@ -251,7 +250,7 @@
     (when (re-search-forward regex nil t arg)
       (goto-char (match-end 0))
       (forward-char -1)
-      )))
+      (point))))
 
 (defun tf/backward-element (&optional arg)
   (interactive "p")
