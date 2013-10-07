@@ -76,8 +76,7 @@
                              (font-lock-fontify-buffer)
                              (tf/show-first-only)
                              (goto-char (point-min)))
-                           ))))))
-      )))
+                           )))))))))
 
 (defun tf/file-interesting-p (name)
   (if tf/omit
@@ -265,14 +264,6 @@
       (tf/tab)
       (tf/find-file)))
 
-(defun tf/set-directory ()
-  (interactive)
-  (let ((file-name (tf/get-filename)))
-    (if (file-directory-p file-name)
-        (tf/tab)
-        (with-selected-window (cadr (window-list))
-          (find-file file-name)))))
-
 (defun tf/find-file ()
   (interactive)
   (let ((file-name (tf/get-filename)))
@@ -384,7 +375,6 @@
                  (tf/mode)
                  (setq default-directory project-root)
                  (revert-buffer)
-                 (setq window-size-fixed 'width)
                  (current-buffer)))))
 
     (when tree-find-window
