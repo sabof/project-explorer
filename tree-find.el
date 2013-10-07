@@ -145,16 +145,17 @@
 
 (cl-defun tf/unfold (expanded)
   (interactive "P")
+  (let (( line-beginning
+         (es-total-line-beginning-position)))
+    (when (/= (line-number-at-pos)
+              (line-number-at-pos
+               line-beginning))
+      (goto-char line-beginning)
+      (goto-char (1- (line-end-position)))
+      ))
   (save-excursion
-    (let* (( point-final-pos
-             (min (point)
-                  (save-excursion
-                    (goto-char (es-total-line-beginning))
-                    (if (re-search-forward "/\n" nil t)
-                        (match-beginning 0)
-                      most-positive-fixnum))))
-           ( initial-indentation
-             (es-current-character-indentation))
+    (let* (( initial-indentation
+            (es-current-character-indentation))
            ( end (save-excursion
                    (or (tf/forward-element)
                        (point-max)))))
@@ -166,8 +167,7 @@
                 (format "^\t\\{%s\\}[^\t\n].*/$" (1+ initial-indentation))
                 end
                 t)
-          (tf/fold)))
-      (goto-char point-final-pos))))
+          (tf/fold))))))
 
 (cl-defun tf/fold ()
   (interactive)
@@ -175,21 +175,21 @@
             (tf/folded-p))
     (cl-return-from tf/fold))
   (let* (( indent
-           (save-excursion
-             (goto-char (line-beginning-position))
-             (skip-chars-forward "\t")
-             (buffer-substring (line-beginning-position)
-                               (point))))
+          (save-excursion
+            (goto-char (line-beginning-position))
+            (skip-chars-forward "\t")
+            (buffer-substring (line-beginning-position)
+                              (point))))
          ( end
-           (save-excursion
-             (goto-char (line-end-position 1))
-             (let (( regex
-                     (format "^\t\\{0,%s\\}[^\t\n]"
-                             (length indent))))
-               ;; (setq tmp regex)
-               (if (re-search-forward regex nil t)
-                   (line-end-position 0)
-                 (point-max)))))
+          (save-excursion
+            (goto-char (line-end-position 1))
+            (let (( regex
+                   (format "^\t\\{0,%s\\}[^\t\n]"
+                           (length indent))))
+              ;; (setq tmp regex)
+              (if (re-search-forward regex nil t)
+                  (line-end-position 0)
+                  (point-max)))))
          ( ov (make-overlay (line-end-position 1)
                             end)))
     (overlay-put ov 'isearch-open-invisible-temporary
@@ -261,17 +261,29 @@
 
 (defun tf/return ()
   (interactive)
+  (if (file-directory-p (tf/get-filename))
+      (tf/tab)
+      (tf/find-file)))
+
+(defun tf/set-directory ()
+  (interactive)
   (let ((file-name (tf/get-filename)))
     (if (file-directory-p file-name)
         (tf/tab)
-      (with-selected-window (cadr (window-list))
-        (find-file file-name)))))
+        (with-selected-window (cadr (window-list))
+          (find-file file-name)))))
+
+(defun tf/find-file ()
+  (interactive)
+  (let ((file-name (tf/get-filename)))
+    (with-selected-window (cadr (window-list))
+      (find-file file-name))))
 
 (defun tf/tab (&optional arg)
   (interactive "P")
   (if (tf/folded-p)
       (tf/unfold arg)
-    (tf/fold)))
+      (tf/fold)))
 
 (defun tf/up-element ()
   (interactive)
@@ -304,16 +316,16 @@
         (setq result (file-name-as-directory result)))
       result)))
 
-(defun tf/find-directory (dir)
+(defun tf/set-directory (dir)
   (interactive
    (let ((file-name (tf/get-filename)))
      (list (read-file-name
             "Set directory to: "
             (if (file-directory-p file-name)
                 file-name
-              (file-name-directory
-               (directory-file-name
-                file-name)))))))
+                (file-name-directory
+                 (directory-file-name
+                  file-name)))))))
   (when (file-directory-p dir)
     (setq dir (file-name-as-directory dir)))
   (setq default-directory dir)
@@ -328,7 +340,7 @@
   (setq-local tab-width 2)
   (es-define-keys tf/mode-map
     (kbd "u") 'tf/up-element
-    (kbd "f") 'tf/find-directory
+    (kbd "d") 'tf/set-directory
     (kbd "<tab>") 'tf/tab
     (kbd "M-}") 'tf/forward-element
     (kbd "M-{") 'tf/backward-element
@@ -340,6 +352,7 @@
     (kbd "q") 'tf/quit
     (kbd "s") 'isearch-forward
     (kbd "r") 'isearch-backward
+    (kbd "f") 'tf/find-file
     )
   (font-lock-add-keywords
    'tf/mode '(("^.+/$" (0 'dired-directory append)))))
