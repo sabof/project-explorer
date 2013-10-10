@@ -41,6 +41,7 @@
 (defvar tf/side 'left)
 (defvar tf/width 40)
 (defvar tf/omit t)
+(defvar tf/data nil)
 (defvar tf/omit-regex
   "^\\.[^\\.]\\|^#")
 
@@ -70,6 +71,7 @@
                      (lambda (result)
                        (when result
                          (with-current-buffer tree-find-buffer
+                           (setq-local tf/data result)
                            (let ((inhibit-read-only t))
                              (erase-buffer)
                              (tf/print-indented-tree
@@ -349,6 +351,34 @@
     )
   (font-lock-add-keywords
    'tf/mode '(("^.+/$" (0 'dired-directory append)))))
+
+(defun tf/get-current-tree-find-buffer ()
+  (let (( project-root (funcall tf/project-root-function))
+        ( tree-find-buffers (tf/get-tree-find-buffers)))
+    (cl-find project-root
+             tree-find-buffers
+             :key (lambda (project-tree-find-buffer)
+                    (with-current-buffer project-tree-find-buffer
+                      default-directory))
+             :test 'string-equal)))
+
+(defun tf/flatten-tree (tree &optional prefix)
+  (let ((current-prefix (if prefix
+                            (concat prefix "/" (car tree))
+                          (car tree))))
+    (cl-reduce 'append
+               (mapcar (lambda (it)
+                         (if (consp it)
+                             (tf/flatten-tree it current-prefix)
+                           (list (concat current-prefix "/" it))))
+                       (rest tree))))
+  )
+
+(defun tf/completing-read-files ()
+  (let ((flat-tree (with-current-buffer tf/get-current-tree-find-buffer
+                     ))
+        (completing-read ))
+    ))
 
 ;;; Interface
 
