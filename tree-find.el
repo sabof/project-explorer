@@ -51,7 +51,9 @@
       (locate-dominating-file default-directory ".git"))))
 
 (defun tf/get-directory-files-dir-cache (dir done-func)
-  (funcall done-func (dir-cache-get-dir dir current-prefix-arg)))
+  (funcall done-func (dir-cache-get-dir dir t
+                                        ;; current-prefix-arg
+                                        )))
 
 (defun tf/get-tree-find-buffers ()
   (es-buffers-with-mode 'tf/mode))
