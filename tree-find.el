@@ -41,6 +41,7 @@
 (defvar tf/side 'left)
 (defvar tf/width 40)
 (defvar tf/omit t)
+(defvar tf/data nil)
 (defvar tf/omit-regex
   "^\\.[^\\.]\\|^#")
 
@@ -51,7 +52,9 @@
       (locate-dominating-file default-directory ".git"))))
 
 (defun tf/get-directory-files-dir-cache (dir done-func)
-  (funcall done-func (dir-cache-get-dir dir current-prefix-arg)))
+  (funcall done-func (dir-cache-get-dir dir t
+                                        ;; current-prefix-arg
+                                        )))
 
 (defun tf/get-tree-find-buffers ()
   (es-buffers-with-mode 'tf/mode))
@@ -68,6 +71,7 @@
                      (lambda (result)
                        (when result
                          (with-current-buffer tree-find-buffer
+                           (setq-local tf/data result)
                            (let ((inhibit-read-only t))
                              (erase-buffer)
                              (tf/print-indented-tree
@@ -145,7 +149,7 @@
 (cl-defun tf/unfold (expanded)
   (interactive "P")
   (let (( line-beginning
-         (es-total-line-beginning-position)))
+          (es-total-line-beginning-position)))
     (when (/= (line-number-at-pos)
               (line-number-at-pos
                line-beginning))
@@ -154,7 +158,7 @@
       ))
   (save-excursion
     (let* (( initial-indentation
-            (es-current-character-indentation))
+             (es-current-character-indentation))
            ( end (save-excursion
                    (or (tf/forward-element)
                        (point-max)))))
@@ -174,21 +178,21 @@
             (tf/folded-p))
     (cl-return-from tf/fold))
   (let* (( indent
-          (save-excursion
-            (goto-char (line-beginning-position))
-            (skip-chars-forward "\t")
-            (buffer-substring (line-beginning-position)
-                              (point))))
+           (save-excursion
+             (goto-char (line-beginning-position))
+             (skip-chars-forward "\t")
+             (buffer-substring (line-beginning-position)
+                               (point))))
          ( end
-          (save-excursion
-            (goto-char (line-end-position 1))
-            (let (( regex
-                   (format "^\t\\{0,%s\\}[^\t\n]"
-                           (length indent))))
-              ;; (setq tmp regex)
-              (if (re-search-forward regex nil t)
-                  (line-end-position 0)
-                  (point-max)))))
+           (save-excursion
+             (goto-char (line-end-position 1))
+             (let (( regex
+                     (format "^\t\\{0,%s\\}[^\t\n]"
+                             (length indent))))
+               ;; (setq tmp regex)
+               (if (re-search-forward regex nil t)
+                   (line-end-position 0)
+                 (point-max)))))
          ( ov (make-overlay (line-end-position 1)
                             end)))
     (overlay-put ov 'isearch-open-invisible-temporary
@@ -314,9 +318,9 @@
             "Set directory to: "
             (if (file-directory-p file-name)
                 file-name
-                (file-name-directory
-                 (directory-file-name
-                  file-name)))))))
+              (file-name-directory
+               (directory-file-name
+                file-name)))))))
   (when (file-directory-p dir)
     (setq dir (file-name-as-directory dir)))
   (setq default-directory dir)
@@ -349,6 +353,34 @@
     )
   (font-lock-add-keywords
    'tf/mode '(("^.+/$" (0 'dired-directory append)))))
+
+(defun tf/get-current-tree-find-buffer ()
+  (let (( project-root (funcall tf/project-root-function))
+        ( tree-find-buffers (tf/get-tree-find-buffers)))
+    (cl-find project-root
+             tree-find-buffers
+             :key (lambda (project-tree-find-buffer)
+                    (with-current-buffer project-tree-find-buffer
+                      default-directory))
+             :test 'string-equal)))
+
+(defun tf/flatten-tree (tree &optional prefix)
+  (let ((current-prefix (if prefix
+                            (concat prefix "/" (car tree))
+                          (car tree))))
+    (cl-reduce 'append
+               (mapcar (lambda (it)
+                         (if (consp it)
+                             (tf/flatten-tree it current-prefix)
+                           (list (concat current-prefix "/" it))))
+                       (rest tree))))
+  )
+
+(defun tf/completing-read-files ()
+  (let ((flat-tree (with-current-buffer tf/get-current-tree-find-buffer
+                     ))
+        (completing-read ))
+    ))
 
 ;;; Interface
 

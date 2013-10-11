@@ -184,6 +184,36 @@ tests.el
       (back-to-indentation)
       (should (= (point) ori-point)))))
 
+(ert-deftest tf/flatten-tree1 ()
+  (let* ((input (list "def"
+                      "ab"
+                      "cd"))
+         (output (tf/flatten-tree input))
+         (expected-output (list "def/ab"
+                                "def/cd")))
+    (should (tree-equal output expected-output
+                        :test 'string-equal))))
+
+(ert-deftest tf/flatten-tree2 ()
+  (let* ((input (list "def"
+                      "ab"
+                      "cd"))
+         (output (tf/flatten-tree input "abc"))
+         (expected-output (list "abc/def/ab"
+                                "abc/def/cd")))
+    (should (tree-equal output expected-output
+                        :test 'string-equal))))
+
+(ert-deftest tf/flatten-tree3 ()
+  (let* ((input (list "def"
+                      "ab"
+                      "cd"))
+         (output (tf/flatten-tree input "abc"))
+         (expected-output (list "abc/def/ab"
+                                "abc/def/cd")))
+    (should (tree-equal output expected-output
+                        :test 'string-equal))))
+
 (defun tf/integration-test ()
   (let (( tf/get-directory-files-method
           (lambda (dir func)
