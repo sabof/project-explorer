@@ -269,11 +269,12 @@
       (tf/tab)
     (tf/find-file)))
 
-(defun tf/find-file ()
+(defun tf/find-file (&optional focus)
   (interactive)
-  (let ((file-name (tf/get-filename)))
-    (with-selected-window (cadr (window-list))
-      (find-file file-name))))
+  (let ((file-name (tf/get-filename))
+        (win (cadr (window-list))))
+    (select-window win)
+    (find-file file-name)))
 
 (defun tf/tab (&optional arg)
   (interactive "P")
@@ -285,13 +286,12 @@
   (interactive)
   (goto-char (es-total-line-beginning-position))
   (let (( indentation (tf/current-indnetation)))
-    (when  (and (not (zerop indentation))
-                (re-search-backward
-                 (format
-                  "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
-                  (1- indentation))
-                 nil t))
-      (goto-char (match-end 1)))))
+    (and (not (zerop indentation))
+         (re-search-backward (format
+                              "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
+                              (1- indentation))
+                             nil t)
+         (goto-char (match-end 1)))))
 
 (defun tf/get-filename ()
   (interactive)
@@ -340,8 +340,10 @@
     (kbd "<tab>") 'tf/tab
     (kbd "M-}") 'tf/forward-element
     (kbd "M-{") 'tf/backward-element
-    (kbd "n") 'tf/forward-element
-    (kbd "p") 'tf/backward-element
+    (kbd "]") 'tf/forward-element
+    (kbd "[") 'tf/backward-element
+    (kbd "n") 'next-line
+    (kbd "p") 'previous-line
     ;; (kbd "^") 'tf/up-directory
     (kbd "<return>") 'tf/return
     (kbd "<mouse-2>") 'tf/middle-click
