@@ -78,7 +78,6 @@
                               (tf/compress-tree
                                (tf/sort result)))
                              (font-lock-fontify-buffer)
-                             (tf/show-first-only)
                              (goto-char (point-min)))
                            )))))))))
 
@@ -120,47 +119,53 @@
     ))
 
 (cl-defun tf/print-indented-tree (branch &optional (depth -1))
-  (cond ( (stringp branch)
-          (when (tf/file-interesting-p branch)
-            (insert (make-string depth ?\t)
-                    branch
-                    ?\n)))
-        ( t (when (or (> 0 depth)
-                      (tf/file-interesting-p (car branch)))
-              (when (>= depth 0)
-                (insert (make-string depth ?\t)
-                        (car branch) "/"
-                        ?\n))
-              (cl-dolist (item (rest branch))
-                (tf/print-indented-tree item (1+ depth)))))))
+  (let (start)
+    (cond ( (stringp branch)
+            (when (tf/file-interesting-p branch)
+              (insert (make-string depth ?\t)
+                      branch
+                      ?\n)))
+          ( t (when (or (> 0 depth)
+                        (tf/file-interesting-p (car branch)))
+                (when (>= depth 0)
+                  (insert (make-string depth ?\t)
+                          (car branch) "/\n")
+                  (setq start (point)))
+                (cl-dolist (item (rest branch))
+                  (tf/print-indented-tree item (1+ depth)))
+                (when (and start (> (point) start))
+                  ;; (message "ran %s %s" start (point))
+                  (tf/make-hiding-overlay (1- start) (1- (point)))
+                  )
+                )))))
 
 ;;; TEXT ->
 
-(defun tf/current-indnetation ()
-  (- (tf/tab-ending)
-     (line-beginning-position)))
+  (defun tf/current-indnetation ()
+    (- (tf/tab-ending)
+       (line-beginning-position)))
 
-(defun tf/tab-ending ()
-  (save-excursion
-    (goto-char (line-beginning-position))
-    (skip-chars-forward "\t")
-    (point)))
+  (defun tf/tab-ending ()
+    (save-excursion
+      (goto-char (line-beginning-position))
+      (skip-chars-forward "\t")
+      (point)))
 
-(cl-defun tf/unfold (expanded)
-  (interactive "P")
-  (let (( line-beginning
-          (es-total-line-beginning-position)))
-    (when (/= (line-number-at-pos)
-              (line-number-at-pos
-               line-beginning))
-      (goto-char line-beginning)
-      (goto-char (1- (line-end-position)))
-      ))
-  (save-excursion
-    (let* (( initial-indentation
-             (es-current-character-indentation))
-           ( end (save-excursion
-                   (or (tf/forward-element)
+  (cl-defun tf/unfold (expanded)
+    (interactive "P")
+    (let (( line-beginning
+            (es-total-line-beginning-position)))
+      (when (/= (line-number-at-pos)
+                (line-number-at-pos
+                 line-beginning))
+        (goto-char line-beginning)
+        (goto-char (1- (line-end-position)))
+        ))
+    (save-excursion
+      (let* (( initial-indentation
+               (es-current-character-indentation))
+             ( end (save-excursion
+                     (or (tf/forward-element)
                        (point-max)))))
       (remove-overlays (es-total-line-beginning-position)
                        (es-total-line-end-position)
@@ -171,6 +176,20 @@
                 end
                 t)
           (tf/fold))))))
+
+(defun tf/make-hiding-overlay (from to)
+  (let ((ov (make-overlay from to)))
+    (overlay-put ov 'isearch-open-invisible-temporary
+                 'hs-isearch-show-temporary)
+    (overlay-put ov 'isearch-open-invisible
+                 'hs-isearch-show)
+    (overlay-put ov 'invisible 'hs)
+    (overlay-put ov 'display "...")
+    (overlay-put ov 'hs 'code)
+    (overlay-put ov 'is-tf-hider t)
+    (overlay-put ov 'evaporate t)
+    )
+  )
 
 (cl-defun tf/fold ()
   (interactive)
@@ -192,28 +211,10 @@
                ;; (setq tmp regex)
                (if (re-search-forward regex nil t)
                    (line-end-position 0)
-                 (point-max)))))
-         ( ov (make-overlay (line-end-position 1)
-                            end)))
-    (overlay-put ov 'isearch-open-invisible-temporary
-                 'hs-isearch-show-temporary)
-    (overlay-put ov 'isearch-open-invisible
-                 'hs-isearch-show)
-    (overlay-put ov 'invisible 'hs)
-    (overlay-put ov 'display "...")
-    (overlay-put ov 'hs 'code)
-    (overlay-put ov 'is-tf-hider t)
-    (overlay-put ov 'evaporate t)
+                 (point-max))))))
+    (tf/make-hiding-overlay (line-end-position 1)
+                            end)
     ))
-
-(defun tf/show-first-only ()
-  (interactive)
-  (save-excursion
-    (remove-overlays (point-min) (point-max)
-                     'is-tf-hider t)
-    (goto-char (point-min))
-    (while (re-search-forward "^[^\t]" nil t)
-      (tf/fold))))
 
 (defun tf/up-directory ()
   (interactive)
