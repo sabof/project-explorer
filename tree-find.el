@@ -172,13 +172,9 @@
                        (point-max))))
            ( ov (save-excursion
                   (goto-char (es-total-line-beginning-position))
-                  (overlays-at (line-end-position))))
-           ( ovs (cl-sort (overlays-in (es-total-line-beginning-position)
-                                       (es-total-line-end-position))
-                          '<
-                          :key 'overlay-start)))
-      (when ovs
-        (delete-overlay (car ovs)))
+                  (car (overlays-at (line-end-position))))))
+      (when ov
+        (delete-overlay ov))
       ;; (remove-overlays (es-total-line-beginning-position)
       ;;                  (es-total-line-end-position)
       ;;                  'is-tf-hider t)
@@ -344,8 +340,12 @@
               (file-name-directory
                (directory-file-name
                 file-name)))))))
-  (when (file-directory-p dir)
-    (setq dir (file-name-as-directory dir)))
+  (unless (file-directory-p dir)
+    (error "\"%s\" is not a directory"
+           dir))
+  (setq dir (file-name-as-directory dir))
+  (unless (string-equal default-directory dir)
+    (setq tf/unfolded-lines))
   (setq default-directory dir)
   (revert-buffer)
   )
