@@ -41,9 +41,11 @@
 (defvar tf/side 'left)
 (defvar tf/width 40)
 (defvar tf/omit t)
-(defvar tf/data nil)
+(defvar-local tf/data nil)
 (defvar tf/omit-regex
   "^\\.[^\\.]\\|^#")
+
+(defvar-local tf/unfolded-lines nil)
 
 (defvar tf/project-root-function
   (lambda ()
@@ -71,7 +73,7 @@
                      (lambda (result)
                        (when result
                          (with-current-buffer tree-find-buffer
-                           (setq-local tf/data result)
+                           (setq tf/data result)
                            (let ((inhibit-read-only t))
                              (erase-buffer)
                              (tf/print-indented-tree
@@ -141,41 +143,52 @@
 
 ;;; TEXT ->
 
-  (defun tf/current-indnetation ()
-    (- (tf/tab-ending)
-       (line-beginning-position)))
+(defun tf/current-indnetation ()
+  (- (tf/tab-ending)
+     (line-beginning-position)))
 
-  (defun tf/tab-ending ()
-    (save-excursion
-      (goto-char (line-beginning-position))
-      (skip-chars-forward "\t")
-      (point)))
+(defun tf/tab-ending ()
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (skip-chars-forward "\t")
+    (point)))
 
-  (cl-defun tf/unfold (expanded)
-    (interactive "P")
-    (let (( line-beginning
-            (es-total-line-beginning-position)))
-      (when (/= (line-number-at-pos)
-                (line-number-at-pos
-                 line-beginning))
-        (goto-char line-beginning)
-        (goto-char (1- (line-end-position)))
-        ))
-    (save-excursion
-      (let* (( initial-indentation
-               (es-current-character-indentation))
-             ( end (save-excursion
-                     (or (tf/forward-element)
-                       (point-max)))))
-      (remove-overlays (es-total-line-beginning-position)
-                       (es-total-line-end-position)
-                       'is-tf-hider t)
-      (unless expanded
-        (while (re-search-forward
-                (format "^\t\\{%s\\}[^\t\n].*/$" (1+ initial-indentation))
-                end
-                t)
-          (tf/fold))))))
+(cl-defun tf/unfold (expanded)
+  (interactive "P")
+  (let (( line-beginning
+          (es-total-line-beginning-position)))
+    (when (/= (line-number-at-pos)
+              (line-number-at-pos
+               line-beginning))
+      (goto-char line-beginning)
+      (goto-char (1- (line-end-position)))
+      ))
+  (pushnew (tf/get-filename) tf/unfolded-lines)
+  (save-excursion
+    (let* (( initial-indentation
+             (es-current-character-indentation))
+           ( end (save-excursion
+                   (or (tf/forward-element)
+                       (point-max))))
+           ( ov (save-excursion
+                  (goto-char (es-total-line-beginning-position))
+                  (overlays-at (line-end-position))))
+           ( ovs (cl-sort (overlays-in (es-total-line-beginning-position)
+                                       (es-total-line-end-position))
+                          '<
+                          :key 'overlay-start)))
+      (when ovs
+        (delete-overlay (car ovs)))
+      ;; (remove-overlays (es-total-line-beginning-position)
+      ;;                  (es-total-line-end-position)
+      ;;                  'is-tf-hider t)
+      ;; (unless expanded
+      ;;   (while (re-search-forward
+      ;;           (format "^\t\\{%s\\}[^\t\n].*/$" (1+ initial-indentation))
+      ;;           end
+      ;;           t)
+      ;;     (tf/fold)))
+      )))
 
 (defun tf/make-hiding-overlay (from to)
   (let ((ov (make-overlay from to)))
@@ -211,7 +224,16 @@
                ;; (setq tmp regex)
                (if (re-search-forward regex nil t)
                    (line-end-position 0)
-                 (point-max))))))
+                 (point-max)))))
+         ( name (tf/get-filename))
+         ( unfolded-contained
+           (cl-remove-if-not
+            (lambda (path)
+              (string-prefix-p name path))
+            tf/unfolded-lines)))
+    ;; (message "%s" unfolded-contained)
+    (setq tf/unfolded-lines
+          (remove name tf/unfolded-lines))
     (tf/make-hiding-overlay (line-end-position 1)
                             end)
     ))
