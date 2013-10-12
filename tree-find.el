@@ -444,7 +444,7 @@
            (delete-window window)))
     (setq tree-find-window (split-window (frame-root-window)
                                          (- (frame-width) tf/width) 'left))
-    (set-window-parameter tree-find-window 'window-side 'right)
+    (set-window-parameter tree-find-window 'window-side 'left)
     (set-window-buffer tree-find-window project-tree-find-buffer)
     (set-window-dedicated-p tree-find-window t)
     (select-window tree-find-window)
