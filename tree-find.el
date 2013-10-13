@@ -153,7 +153,7 @@
     (skip-chars-forward "\t")
     (point)))
 
-(cl-defun tf/unfold (expanded)
+(cl-defun tf/unfold (&optional expanded)
   (interactive "P")
   (let (( line-beginning
           (es-total-line-beginning-position)))
@@ -200,6 +200,35 @@
     )
   )
 
+(defun tf/goto-file (file-name &optional on-each-semgent-function)
+  (let ((segments (split-string
+                   (if (file-name-absolute-p file-name)
+                       (substring file-name (length default-directory))
+                     file-name)
+                   "/" t)))
+    (goto-char (point-min))
+    (cl-loop with limit
+             for segment in segments
+             for iter = 0 then (1+ iter)
+             ;; for is-final = (= iter (1- (length segments)))
+             do (if (re-search-forward
+                     (concat "^\t\\{"
+                             (int-to-string iter)
+                             "\\}\\(?1:"
+                             segment
+                             "/?\\)"
+                             )
+                     limit t)
+                    (progn
+                      (goto-char (match-beginning 1))
+                      (when on-each-semgent-function
+                        (funcall on-each-semgent-function)))
+                  (cl-return)))
+    ))
+
+(defun tf/show-file (file-name)
+  (tf/goto-file file-name 'tf/unfold))
+
 (cl-defun tf/fold ()
   (interactive)
   (when (or (looking-at ".*\n?\\'")
@@ -223,15 +252,16 @@
                  (point-max)))))
          ( name (tf/get-filename))
          ( unfolded-contained
-           (cl-remove-if-not
-            (lambda (path)
-              (string-prefix-p name path))
-            tf/unfolded-lines)))
-    ;; (message "%s" unfolded-contained)
-    (setq tf/unfolded-lines
-          (remove name tf/unfolded-lines))
+           (cl-sort (cl-remove-if-not
+                     (lambda (path)
+                       (string-prefix-p name path))
+                     (remove name tf/unfolded-lines))
+                    '>
+                    :key (lambda (it) (length (split-string it "/" t)))
+                    )))
     (tf/make-hiding-overlay (line-end-position 1)
                             end)
+    (mapc 'tf/fold-by-name tf/unfolded-lines)
     ))
 
 (defun tf/up-directory ()
@@ -243,8 +273,10 @@
   (revert-buffer))
 
 (defun tf/folded-p ()
-  (let (( ovs (overlays-in (es-total-line-beginning-position)
-                           (es-total-line-end-position))))
+  (let (( ovs (save-excursion
+                (goto-char (es-total-line-beginning-position))
+                (goto-char (line-end-position))
+                (overlays-at (point)))))
     (cl-some (lambda (ov)
                (overlay-get ov 'is-tf-hider))
              ovs)))
@@ -443,8 +475,8 @@
            (> (length (window-list)) 1)
            (delete-window window)))
     (setq tree-find-window (split-window (frame-root-window)
-                                         (- (frame-width) tf/width) 'left))
-    (set-window-parameter tree-find-window 'window-side 'left)
+                                         (- (frame-width) tf/width) tf/side))
+    (set-window-parameter tree-find-window 'window-side tf/side)
     (set-window-buffer tree-find-window project-tree-find-buffer)
     (set-window-dedicated-p tree-find-window t)
     (select-window tree-find-window)

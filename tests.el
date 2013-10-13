@@ -214,6 +214,29 @@ tests.el
     (should (tree-equal output expected-output
                         :test 'string-equal))))
 
+(ert-deftest tf/goto-file ()
+  (let ((text "node2/
+node1/
+node3/
+	subnode1/
+		subnode3/
+		subnode2/
+")
+        )
+    (with-temp-buffer
+      (insert text)
+      (tf/goto-file "node1")
+      (should (= (point) 8))
+      (tf/goto-file "node3/subnode1")
+      (should (= (point) 23))
+      (tf/goto-file "node3/subnode1/subnode3")
+      (should (= (point) 35))
+      (tf/goto-file "node3/subnode1/subnode3/")
+      (should (= (point) 35))
+      (tf/goto-file "node3/subnode1/subnode2/")
+      (should (= (point) 47))
+      )))
+
 (defun tf/integration-test ()
   (let (( tf/get-directory-files-method
           (lambda (dir func)
