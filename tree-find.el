@@ -33,18 +33,17 @@
 (require 'cl-lib)
 (require 'es-lib)
 
-(defvar tf/next-fringe nil)
-(defvar tf/current-fringe nil)
 (defvar tf/directory-files-function
   'tf/get-directory-tree-simple)
 (defvar tf/side 'left)
 (defvar tf/width 40)
 (defvar tf/omit t)
-(defvar-local tf/data nil)
 (defvar tf/omit-regex
-  "^\\.[^\\.]\\|^#")
+  "^\\.\\|^#")
 
+(defvar-local tf/data nil)
 (defvar-local tf/unfolded-lines nil)
+(defvar-local tf/previous-directory nil)
 
 (defvar tf/project-root-function
   (lambda ()
@@ -71,26 +70,44 @@
   (es-buffers-with-mode 'tf/mode))
 
 (cl-defun tf/revert-buffer (&rest ignore)
-  (let ((inhibit-read-only t)
-        (tree-find-buffer (current-buffer)))
+  (let (( inhibit-read-only t)
+        ( tree-find-buffer (current-buffer))
+        ( starting-name (tf/get-filename))
+        ( starting-column (current-column)))
     (erase-buffer)
     (delete-all-overlays)
     (insert "Searching for files...")
-    (let (( function-result
-            (funcall tf/directory-files-function
-                     default-directory
-                     (lambda (result)
-                       (when result
-                         (with-current-buffer tree-find-buffer
-                           (setq tf/data result)
-                           (let ((inhibit-read-only t))
-                             (erase-buffer)
-                             (tf/print-indented-tree
-                              (tf/compress-tree
-                               (tf/sort result)))
-                             (font-lock-fontify-buffer)
-                             (goto-char (point-min)))
-                           )))))))))
+    (funcall tf/directory-files-function
+             default-directory
+             (lambda (result)
+               (when result
+                 (with-current-buffer tree-find-buffer
+                   (setq tf/data result)
+                   (let ((inhibit-read-only t))
+                     (erase-buffer)
+                     (tf/print-indented-tree
+                      (tf/compress-tree
+                       (tf/sort result)))
+                     (font-lock-fontify-buffer)
+                     (goto-char (point-min)))
+                   ))))
+    (if (not (string-equal tf/previous-directory
+                           default-directory))
+        (setq tf/unfolded-lines)
+      (mapc (lambda (file-name)
+              (when (tf/goto-file file-name)
+                (tf/unfold)))
+            (cl-sort
+             tf/unfolded-lines
+             '<
+             :key (lambda (it) (length (split-string it "/" t)))
+             ))
+      (when starting-name
+        (tf/goto-file starting-name nil t)
+        (forward-char (- starting-column (current-column)))))
+    (setq tf/previous-directory default-directory)
+    (when (eq this-command 'revert-buffer)
+      (message "Refresh complete"))))
 
 (defun tf/file-interesting-p (name)
   (if tf/omit
@@ -172,7 +189,8 @@
       (goto-char line-beginning)
       (goto-char (1- (line-end-position)))
       ))
-  (pushnew (tf/get-filename) tf/unfolded-lines)
+  (cl-pushnew (tf/get-filename) tf/unfolded-lines
+              :test 'string-equal)
   (save-excursion
     (let* (( initial-indentation
              (es-current-character-indentation))
@@ -209,31 +227,40 @@
     )
   )
 
-(defun tf/goto-file (file-name &optional on-each-semgent-function)
-  (let ((segments (split-string
-                   (if (file-name-absolute-p file-name)
-                       (substring file-name (length default-directory))
-                     file-name)
-                   "/" t)))
+(defun tf/goto-file (file-name &optional on-each-semgent-function goto-best-match)
+  (let* (( segments (split-string
+                     (if (file-name-absolute-p file-name)
+                         (substring file-name (length default-directory))
+                       file-name)
+                     "/" t))
+         ( init-pos (point))
+         best-match
+         found)
     (goto-char (point-min))
     (cl-loop with limit
              for segment in segments
              for iter = 0 then (1+ iter)
              ;; for is-final = (= iter (1- (length segments)))
              do (if (re-search-forward
-                     (concat "^\t\\{"
-                             (int-to-string iter)
-                             "\\}\\(?1:"
-                             segment
-                             "/?\\)"
-                             )
+                     (format "^\t\\{%s\\}\\(?1:%s/?\\)"
+                             (int-to-string iter) segment)
                      limit t)
                     (progn
-                      (goto-char (match-beginning 1))
+                      ;; (goto-char (match-beginning 1))
+                      (setq limit (save-excursion
+                                    (or (tf/forward-element)
+                                        (point-max))))
+                      (setq best-match (match-beginning 1))
                       (when on-each-semgent-function
-                        (funcall on-each-semgent-function)))
-                  (cl-return)))
-    ))
+                        (save-excursion
+                          (goto-char (match-beginning 1))
+                          (funcall on-each-semgent-function))))
+                  (cl-return))
+             finally (setq found t))
+    (goto-char (if (and best-match (or found goto-best-match))
+                   best-match
+                 init-pos))
+    (and found best-match)))
 
 (defun tf/show-file (file-name)
   (tf/goto-file file-name 'tf/unfold))
@@ -255,22 +282,28 @@
              (let (( regex
                      (format "^\t\\{0,%s\\}[^\t\n]"
                              (length indent))))
-               ;; (setq tmp regex)
                (if (re-search-forward regex nil t)
                    (line-end-position 0)
                  (point-max)))))
          ( name (tf/get-filename))
          ( unfolded-contained
-           (cl-sort (cl-remove-if-not
-                     (lambda (path)
-                       (string-prefix-p name path))
-                     (remove name tf/unfolded-lines))
-                    '>
-                    :key (lambda (it) (length (split-string it "/" t)))
-                    )))
+           (progn
+             (setq tf/unfolded-lines
+                   (cl-remove name tf/unfolded-lines
+                              :test 'string-equal))
+             (cl-sort (cl-remove-if-not
+                       (lambda (path)
+                         (string-prefix-p name path))
+                       tf/unfolded-lines)
+                      '>
+                      :key (lambda (it) (length (split-string it "/" t)))
+                      ))))
+    (save-excursion
+      (cl-dolist (file-name unfolded-contained)
+        (when (tf/goto-file file-name)
+          (tf/fold))))
     (tf/make-hiding-overlay (line-end-position 1)
                             end)
-    (mapc 'tf/fold-by-name tf/unfolded-lines)
     ))
 
 (defun tf/up-directory ()
@@ -300,17 +333,18 @@
 (defun tf/forward-element (&optional arg)
   (interactive "p")
   (setq arg (or arg 1))
-  (let* (( initial-indentation
-           (es-current-character-indentation))
-         ( regex (format "^\t\\{0,%s\\}[^\t\n]"
-                         initial-indentation)))
-    (if (cl-minusp arg)
-        (goto-char (line-beginning-position))
-      (goto-char (line-end-position)))
-    (when (re-search-forward regex nil t arg)
-      (goto-char (match-end 0))
-      (forward-char -1)
-      (point))))
+  (save-match-data
+    (let* (( initial-indentation
+             (es-current-character-indentation))
+           ( regex (format "^\t\\{0,%s\\}[^\t\n]"
+                           initial-indentation)))
+      (if (cl-minusp arg)
+          (goto-char (line-beginning-position))
+        (goto-char (line-end-position)))
+      (when (re-search-forward regex nil t arg)
+        (goto-char (match-end 0))
+        (forward-char -1)
+        (point)))))
 
 (defun tf/backward-element (&optional arg)
   (interactive "p")

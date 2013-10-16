@@ -152,16 +152,6 @@ node3/
     (should (string-equal expected-result
                           result))))
 
-(ert-deftest tf/path-to-list ()
-  (let* ((input "/a/b/c/d")
-         (output (tf/path-to-list input))
-         (expected-output (list "a/" "b/" "c/" "d")))
-    (should (equal output expected-output)))
-  (let* ((input "/a/b/c/d/")
-         (output (tf/path-to-list input))
-         (expected-output (list "a/" "b/" "c/" "d/")))
-    (should (equal output expected-output))))
-
 (ert-deftest tf/forward-element ()
   (with-temp-buffer
     (insert "	index1
