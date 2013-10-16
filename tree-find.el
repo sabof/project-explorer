@@ -94,20 +94,28 @@
     (if (not (string-equal tf/previous-directory
                            default-directory))
         (setq tf/unfolded-lines)
-      (mapc (lambda (file-name)
-              (when (tf/goto-file file-name)
-                (tf/unfold)))
-            (cl-sort
-             tf/unfolded-lines
-             '<
-             :key (lambda (it) (length (split-string it "/" t)))
-             ))
+      (progn
+        (setq tf/unfolded-lines
+              (cl-remove-if-not (lambda (file-name)
+                                  (save-excursion
+                                    (and (tf/goto-file file-name)
+                                         (tf/foldable-p))))
+                                tf/unfolded-lines))
+        (mapc (lambda (file-name)
+                (when (tf/goto-file file-name)
+                  (tf/unfold)))
+              (cl-sort
+               tf/unfolded-lines
+               '<
+               :key (lambda (it) (length (split-string it "/" t)))
+               )))
       (when starting-name
         (tf/goto-file starting-name nil t)
-        (forward-char (- starting-column (current-column)))))
+        (move-to-column starting-column)))
     (setq tf/previous-directory default-directory)
     (when (eq this-command 'revert-buffer)
-      (message "Refresh complete"))))
+      (message "Refresh complete"))
+    ))
 
 (defun tf/file-interesting-p (name)
   (if tf/omit
@@ -228,6 +236,7 @@
   )
 
 (defun tf/goto-file (file-name &optional on-each-semgent-function goto-best-match)
+  ;; FIXME: Doesn't work with combined segments
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
                          (substring file-name (length default-directory))
@@ -264,6 +273,17 @@
 
 (defun tf/show-file (file-name)
   (tf/goto-file file-name 'tf/unfold))
+
+(cl-defun tf/foldable-p ()
+  (unless (looking-at ".*/$")
+    (cl-return-from tf/foldable-p nil))
+  (let ((init-line (line-number-at-pos))
+        (next-line (save-excursion
+                     (tf/forward-element)
+                     (line-number-at-pos))))
+    (and (/= init-line next-line)
+         (/= (1+ init-line) next-line))
+    ))
 
 (cl-defun tf/fold ()
   (interactive)
