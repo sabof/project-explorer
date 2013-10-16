@@ -32,12 +32,11 @@
 
 (require 'cl-lib)
 (require 'es-lib)
-(require 'dir-cache nil t)
 
 (defvar tf/next-fringe nil)
 (defvar tf/current-fringe nil)
 (defvar tf/directory-files-function
-  'tf/get-directory-files-dir-cache)
+  'tf/get-directory-tree-simple)
 (defvar tf/side 'left)
 (defvar tf/width 40)
 (defvar tf/omit t)
@@ -53,10 +52,20 @@
         (projectile-project-root)
       (locate-dominating-file default-directory ".git"))))
 
-(defun tf/get-directory-files-dir-cache (dir done-func)
-  (funcall done-func (dir-cache-get-dir dir t
-                                        ;; current-prefix-arg
-                                        )))
+(cl-defun tf/get-directory-tree-simple (dir done-func)
+  ;; (unless (file-exists-p dir)
+  ;;   (debug))
+  (let (walker)
+    (setq walker
+          (lambda (dir)
+            (let (( files (dc//directory-files dir)))
+              (cons (file-name-nondirectory (directory-file-name dir))
+                    (mapcar (lambda (file)
+                              (if (file-directory-p (concat dir file))
+                                  (funcall walker (concat dir file "/"))
+                                file))
+                            files)))))
+    (funcall done-func (funcall walker dir))))
 
 (defun tf/get-tree-find-buffers ()
   (es-buffers-with-mode 'tf/mode))
