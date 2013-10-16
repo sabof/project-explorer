@@ -253,8 +253,7 @@
              do (cond ( (and (cl-plusp iter)
                              (save-excursion
                                (goto-char (match-end 1))
-                               (save-match-data
-                                 (looking-at (concat (regexp-quote segment) "/$")))))
+                               (looking-at-p (concat (regexp-quote segment) "/$"))))
                         (goto-char (match-end 1))
                         (setq best-match (match-end 1))
                         (cl-decf iter))
