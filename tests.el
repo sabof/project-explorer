@@ -227,6 +227,41 @@ node3/
       (should (= (point) 47))
       )))
 
+(ert-deftest tf/goto-file2 ()
+  (let ((text "node2/
+node1/
+node3/
+	node1/
+		node3/
+		node2/
+node4/
+	node6/
+		node3/
+		node2/
+node5/node6/
+	node7/
+		node8/
+node6/node6/
+	node7/
+		node8/
+")
+        )
+    (with-temp-buffer
+      (insert text)
+      (goto-char 1)
+      (should-not (tf/goto-file "node3/node6/"))
+      (should (= (point) 1))
+      (should (tf/goto-file "node5/node6/node7/"))
+      (should (= (point) 96))
+      (should (tf/goto-file "node5/node6/node7/node8/"))
+      (should (= (point) 104))
+
+      (should (tf/goto-file "node5/"))
+      (should (= (point) 81))
+      (should (tf/goto-file "node5/node6/"))
+      (should (= (point) 87))
+      )))
+
 (defun tf/integration-test ()
   (let (( tf/get-directory-files-method
           (lambda (dir func)
