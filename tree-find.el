@@ -250,21 +250,28 @@
              for segment in segments
              for iter = 0 then (1+ iter)
              ;; for is-final = (= iter (1- (length segments)))
-             do (if (re-search-forward
-                     (format "^\t\\{%s\\}\\(?1:%s/?\\)"
-                             (int-to-string iter) segment)
-                     limit t)
-                    (progn
-                      ;; (goto-char (match-beginning 1))
-                      (setq limit (save-excursion
-                                    (or (tf/forward-element)
-                                        (point-max))))
-                      (setq best-match (match-beginning 1))
-                      (when on-each-semgent-function
-                        (save-excursion
-                          (goto-char (match-beginning 1))
-                          (funcall on-each-semgent-function))))
-                  (cl-return))
+             do (cond ( (and (cl-plusp iter)
+                             (save-excursion
+                               (goto-char (match-end 1))
+                               (save-match-data
+                                 (looking-at (concat (regexp-quote segment) "/$")))))
+                        (goto-char (match-end 1))
+                        (setq best-match (match-end 1))
+                        (cl-decf iter))
+                      ( (re-search-forward
+                         (format "^\t\\{%s\\}\\(?1:%s/?\\)"
+                                 (int-to-string iter) segment)
+                         limit t)
+                        ;; (goto-char (match-beginning 1))
+                        (setq limit (save-excursion
+                                      (or (tf/forward-element)
+                                          (point-max))))
+                        (setq best-match (match-beginning 1))
+                        (when on-each-semgent-function
+                          (save-excursion
+                            (goto-char (match-beginning 1))
+                            (funcall on-each-semgent-function))))
+                      ( t (cl-return)))
              finally (setq found t))
     (goto-char (if (and best-match (or found goto-best-match))
                    best-match
