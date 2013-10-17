@@ -91,8 +91,8 @@
            (lambda (listed-file-name)
              (string-prefix-p file-name listed-file-name))
            tf/folds-open))
-    (when (and (not (string-equal parent default-directory))
-               (cl-plusp (length parent))
+    (when (and parent
+               (not (string-equal parent default-directory))
                (not (cl-find-if (lambda (file-name)
                                   (string-prefix-p parent file-name))
                                 tf/folds-open)))
