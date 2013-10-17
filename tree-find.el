@@ -33,6 +33,7 @@
 (require 'cl-lib)
 (require 'es-lib)
 
+(require 'dir-cache)
 (defvar tf/directory-files-function
   'tf/get-directory-tree-simple)
 (defvar tf/side 'left)
@@ -67,7 +68,7 @@
     (funcall done-func (funcall walker dir))))
 
 (defun tf/get-tree-find-buffers ()
-  (es-buffers-with-mode 'tf/mode))
+  (es-buffers-with-mode 'tree-find-mode))
 
 (cl-defun tf/revert-buffer (&rest ignore)
   (let (( inhibit-read-only t)
@@ -451,13 +452,13 @@
   (revert-buffer)
   )
 
-(define-derived-mode tf/mode special-mode
+(define-derived-mode tree-find-mode special-mode
   "Tree find"
   "Display results of find as a folding tree"
   (setq-local revert-buffer-function
               'tf/revert-buffer)
   (setq-local tab-width 2)
-  (es-define-keys tf/mode-map
+  (es-define-keys tree-find-mode-map
     (kbd "u") 'tf/up-element
     (kbd "d") 'tf/set-directory
     (kbd "<tab>") 'tf/tab
@@ -476,7 +477,7 @@
     (kbd "f") 'tf/find-file
     )
   (font-lock-add-keywords
-   'tf/mode '(("^.+/$" (0 'dired-directory append)))))
+   'tree-find-mode '(("^.+/$" (0 'dired-directory append)))))
 
 (defun tf/get-current-tree-find-buffer ()
   (let (( project-root (funcall tf/project-root-function))
@@ -530,7 +531,7 @@
            (or project-tree-find-existing-buffer
                (with-current-buffer
                    (generate-new-buffer "*tree-find*")
-                 (tf/mode)
+                 (tree-find-mode)
                  (setq default-directory project-root)
                  (revert-buffer)
                  (current-buffer)))))
@@ -550,6 +551,13 @@
     (set-window-dedicated-p tree-find-window t)
     (select-window tree-find-window)
     ))
+
+;; (add-hook 'isearch-mode-end-hook
+;;           (lambda ()
+;;             (message "isearch-mode-end-hook ran %s"
+;;                      isearch-mode-end-hook-quit)
+;;             )
+;;           nil t)
 
 (provide 'tree-find)
 ;;; tree-find.el ends here
