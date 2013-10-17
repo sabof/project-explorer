@@ -33,7 +33,6 @@
 (require 'cl-lib)
 (require 'es-lib)
 
-(require 'dir-cache)
 (defvar tf/directory-files-function
   'tf/get-directory-tree-simple)
 (defvar tf/side 'left)
@@ -58,7 +57,9 @@
   (let (walker)
     (setq walker
           (lambda (dir)
-            (let (( files (dc//directory-files dir)))
+            (let (( files (cl-remove-if
+                           (lambda (dir) (member dir '("." "..")))
+                           (directory-files dir))))
               (cons (file-name-nondirectory (directory-file-name dir))
                     (mapcar (lambda (file)
                               (if (file-directory-p (concat dir file))
