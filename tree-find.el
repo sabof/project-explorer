@@ -74,16 +74,29 @@
   (es-buffers-with-mode 'tree-find-mode))
 
 (defun tf/folds-add (file-name)
-  (cl-pushnew file-name tf/folds-open
-              :test 'string-equal))
+  (setq tf/folds-open
+        (cons file-name
+              (cl-remove-if
+               (lambda (listed-file-name)
+                 (string-prefix-p listed-file-name file-name))
+               tf/folds-open))))
 
 (defun tf/folds-remove (file-name)
-  (setq tf/folds-open
-        (cl-remove-if (lambda (listed-file-name)
-                        (string-prefix-p file-name listed-file-name))
-                      tf/folds-open
-                      :test 'string-equal)
-        ))
+  (let (( parent
+          (file-name-directory
+           (directory-file-name
+            file-name))))
+    (setq tf/folds-open
+          (cl-remove-if
+           (lambda (listed-file-name)
+             (string-prefix-p file-name listed-file-name))
+           tf/folds-open))
+    (when (and (not (string-equal parent default-directory))
+               (cl-plusp (length parent))
+               (not (cl-find-if (lambda (file-name)
+                                  (string-prefix-p parent file-name))
+                                tf/folds-open)))
+      (push parent tf/folds-open))))
 
 (defun tf/folds-reset ()
   (setq tf/folds-open))
