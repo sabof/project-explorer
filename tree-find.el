@@ -58,7 +58,9 @@
     (setq walker
           (lambda (dir)
             (let (( files (cl-remove-if
-                           (lambda (dir) (member dir '("." "..")))
+                           (lambda (file)
+                             (or (member file '("." ".."))
+                                 (not (tf/file-interesting-p file))))
                            (directory-files dir))))
               (cons (file-name-nondirectory (directory-file-name dir))
                     (mapcar (lambda (file)
@@ -179,23 +181,20 @@
 (cl-defun tf/print-indented-tree (branch &optional (depth -1))
   (let (start)
     (cond ( (stringp branch)
-            (when (tf/file-interesting-p branch)
-              (insert (make-string depth ?\t)
-                      branch
-                      ?\n)))
-          ( t (when (or (> 0 depth)
-                        (tf/file-interesting-p (car branch)))
-                (when (>= depth 0)
-                  (insert (make-string depth ?\t)
-                          (car branch) "/\n")
-                  (setq start (point)))
-                (cl-dolist (item (rest branch))
-                  (tf/print-indented-tree item (1+ depth)))
-                (when (and start (> (point) start))
-                  ;; (message "ran %s %s" start (point))
-                  (tf/make-hiding-overlay (1- start) (1- (point)))
-                  )
-                )))))
+            (insert (make-string depth ?\t)
+                    branch
+                    ?\n))
+          ( t (when (>= depth 0)
+                (insert (make-string depth ?\t)
+                        (car branch) "/\n")
+                (setq start (point)))
+              (cl-dolist (item (rest branch))
+                (tf/print-indented-tree item (1+ depth)))
+              (when (and start (> (point) start))
+                ;; (message "ran %s %s" start (point))
+                (tf/make-hiding-overlay (1- start) (1- (point)))
+                )
+              ))))
 
 ;;; TEXT ->
 
