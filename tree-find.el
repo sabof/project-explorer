@@ -42,7 +42,7 @@
   "^\\.\\|^#")
 
 (defvar-local tf/data nil)
-(defvar-local tf/unfolded-lines nil)
+(defvar-local tf/folds-open nil)
 (defvar-local tf/previous-directory nil)
 
 (defvar tf/project-root-function
@@ -71,6 +71,40 @@
 (defun tf/get-tree-find-buffers ()
   (es-buffers-with-mode 'tree-find-mode))
 
+(defun tf/folds-add (file-name)
+  (cl-pushnew file-name tf/folds-open
+              :test 'string-equal))
+
+(defun tf/folds-remove (file-name)
+  (setq tf/folds-open
+        (cl-remove-if (lambda (listed-file-name)
+                        (string-prefix-p file-name listed-file-name))
+                      tf/folds-open
+                      :test 'string-equal)
+        ))
+
+(defun tf/folds-reset ()
+  (setq tf/folds-open))
+
+(defun tf/folds-restore ()
+  (setq tf/folds-open
+        (cl-remove-if-not (lambda (file-name)
+                            (save-excursion
+                              (and (tf/goto-file file-name)
+                                   (tf/foldable-p))))
+                          tf/folds-open))
+  (mapc (lambda (file-name)
+          (when (tf/goto-file file-name)
+            (tf/unfold)))
+        (cl-sort
+         tf/folds-open
+         '<
+         :key (lambda (it) (length (split-string it "/" t)))
+         )))
+
+(defun tf/folds-open-children (file-name)
+  )
+
 (cl-defun tf/revert-buffer (&rest ignore)
   (let (( inhibit-read-only t)
         ( tree-find-buffer (current-buffer))
@@ -95,22 +129,8 @@
                    ))))
     (if (not (string-equal tf/previous-directory
                            default-directory))
-        (setq tf/unfolded-lines)
-      (progn
-        (setq tf/unfolded-lines
-              (cl-remove-if-not (lambda (file-name)
-                                  (save-excursion
-                                    (and (tf/goto-file file-name)
-                                         (tf/foldable-p))))
-                                tf/unfolded-lines))
-        (mapc (lambda (file-name)
-                (when (tf/goto-file file-name)
-                  (tf/unfold)))
-              (cl-sort
-               tf/unfolded-lines
-               '<
-               :key (lambda (it) (length (split-string it "/" t)))
-               )))
+        (tf/folds-reset)
+      (tf/folds-restore)
       (when starting-name
         (tf/goto-file starting-name nil t)
         (move-to-column starting-column)))
@@ -199,8 +219,7 @@
       (goto-char line-beginning)
       (goto-char (1- (line-end-position)))
       ))
-  (cl-pushnew (tf/get-filename) tf/unfolded-lines
-              :test 'string-equal)
+  (tf/folds-add (tf/get-filename))
   (save-excursion
     (let* (( initial-indentation
              (es-current-character-indentation))
@@ -316,13 +335,13 @@
          ( name (tf/get-filename))
          ( unfolded-contained
            (progn
-             (setq tf/unfolded-lines
-                   (cl-remove name tf/unfolded-lines
+             (setq tf/folds-open
+                   (cl-remove name tf/folds-open
                               :test 'string-equal))
              (cl-sort (cl-remove-if-not
                        (lambda (path)
                          (string-prefix-p name path))
-                       tf/unfolded-lines)
+                       tf/folds-open)
                       '>
                       :key (lambda (it) (length (split-string it "/" t)))
                       ))))
@@ -448,7 +467,7 @@
            dir))
   (setq dir (file-name-as-directory dir))
   (unless (string-equal default-directory dir)
-    (setq tf/unfolded-lines))
+    (setq tf/folds-open))
   (setq default-directory dir)
   (revert-buffer)
   )
