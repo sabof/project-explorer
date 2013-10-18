@@ -53,8 +53,6 @@
       (locate-dominating-file default-directory ".git"))))
 
 (cl-defun tf/get-directory-tree-simple (dir done-func)
-  ;; (unless (file-exists-p dir)
-  ;;   (debug))
   (let (walker)
     (setq walker
           (lambda (dir)
@@ -83,21 +81,31 @@
                tf/folds-open))))
 
 (defun tf/folds-remove (file-name)
-  (let (( parent
-          (file-name-directory
-           (directory-file-name
-            file-name))))
-    (setq tf/folds-open
-          (cl-remove-if
-           (lambda (listed-file-name)
-             (string-prefix-p file-name listed-file-name))
-           tf/folds-open))
+  (let* (( parent
+           (file-name-directory
+            (directory-file-name
+             file-name)))
+         ( new-folds
+           (cl-remove-if
+            (lambda (listed-file-name)
+              (string-prefix-p file-name listed-file-name))
+            tf/folds-open))
+         ( removed-folds
+           (cl-sort (cl-set-difference
+                     tf/folds-open
+                     new-folds
+                     :test 'string-equal)
+                    '>
+                    :key (lambda (it) (length (split-string it "/" t)))
+                    )))
+    (setq tf/folds-open new-folds)
     (when (and parent
                (not (string-equal parent default-directory))
                (not (cl-find-if (lambda (file-name)
                                   (string-prefix-p parent file-name))
                                 tf/folds-open)))
-      (push parent tf/folds-open))))
+      (push parent tf/folds-open))
+    removed-folds))
 
 (defun tf/folds-reset ()
   (setq tf/folds-open))
@@ -107,7 +115,7 @@
         (cl-remove-if-not (lambda (file-name)
                             (save-excursion
                               (and (tf/goto-file file-name)
-                                   (tf/foldable-p))))
+                                   (tf/location-foldable-p))))
                           tf/folds-open))
   (mapc (lambda (file-name)
           (when (tf/goto-file file-name)
@@ -314,9 +322,11 @@
 (defun tf/show-file (file-name)
   (tf/goto-file file-name 'tf/unfold))
 
-(cl-defun tf/foldable-p ()
-  (unless (looking-at ".*/$")
-    (cl-return-from tf/foldable-p nil))
+(cl-defun tf/location-foldable-p ()
+  (unless (looking-at-p ".*/$")
+    (cl-return-from tf/location-foldable-p nil))
+  (when (looking-at-p "[^\n/]*/[^\n/]*/")
+    (cl-return-from tf/location-foldable-p nil))
   (let ((init-line (line-number-at-pos))
         (next-line (save-excursion
                      (tf/forward-element)
@@ -347,17 +357,7 @@
                  (point-max)))))
          ( name (tf/get-filename))
          ( unfolded-contained
-           (progn
-             (setq tf/folds-open
-                   (cl-remove name tf/folds-open
-                              :test 'string-equal))
-             (cl-sort (cl-remove-if-not
-                       (lambda (path)
-                         (string-prefix-p name path))
-                       tf/folds-open)
-                      '>
-                      :key (lambda (it) (length (split-string it "/" t)))
-                      ))))
+           (tf/folds-remove name)))
     (save-excursion
       (cl-dolist (file-name unfolded-contained)
         (when (tf/goto-file file-name)
