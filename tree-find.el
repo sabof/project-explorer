@@ -44,6 +44,7 @@
 (defvar-local tf/data nil)
 (defvar-local tf/folds-open nil)
 (defvar-local tf/previous-directory nil)
+(defvar-local tf/project-root nil)
 
 (defvar tf/project-root-function
   (lambda ()
@@ -549,8 +550,9 @@
            (cl-find project-root
                     tree-find-buffers
                     :key (lambda (project-tree-find-buffer)
-                           (with-current-buffer project-tree-find-buffer
-                             default-directory))
+                           (with-current-buffer
+                               project-tree-find-buffer
+                             tf/project-root))
                     :test 'string-equal))
          ( tree-find-window
            (and project-tree-find-existing-buffer
@@ -564,7 +566,9 @@
                (with-current-buffer
                    (generate-new-buffer "*tree-find*")
                  (tree-find-mode)
-                 (setq default-directory project-root)
+                 (setq default-directory
+                       (setq tf/project-root
+                             project-root))
                  (revert-buffer)
                  (current-buffer)))))
 
