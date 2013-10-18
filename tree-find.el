@@ -237,7 +237,7 @@
                (when ov
                  (delete-overlay ov)
                  t))
-        (tf/up-element))
+        (tf/up-element-internal))
       )))
 
 (defun tf/unfold-expanded-internal ()
@@ -283,7 +283,6 @@
   )
 
 (defun tf/goto-file (file-name &optional on-each-semgent-function use-best-match)
-  ;; FIXME: Doesn't work with combined segments
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
                          (substring file-name (length default-directory))
@@ -293,32 +292,32 @@
          best-match
          found)
     (goto-char (point-min))
-    (cl-loop with limit
-             for segment in segments
-             for iter = 0 then (1+ iter)
-             ;; for is-final = (= iter (1- (length segments)))
-             do (cond ( (and (cl-plusp iter)
-                             (save-excursion
-                               (goto-char (match-end 1))
-                               (looking-at-p (concat (regexp-quote segment) "/$"))))
-                        (goto-char (match-end 1))
-                        (setq best-match (match-end 1))
-                        (cl-decf iter))
-                      ( (re-search-forward
-                         (format "^\t\\{%s\\}\\(?1:%s/?\\)"
-                                 (int-to-string iter) segment)
-                         limit t)
-                        ;; (goto-char (match-beginning 1))
-                        (setq limit (save-excursion
-                                      (or (tf/forward-element)
-                                          (point-max))))
-                        (setq best-match (match-beginning 1))
-                        (when on-each-semgent-function
-                          (save-excursion
-                            (goto-char (match-beginning 1))
-                            (funcall on-each-semgent-function))))
-                      ( t (cl-return)))
-             finally (setq found t))
+    (save-match-data
+      (cl-loop with limit
+               for segment in segments
+               for iter = 0 then (1+ iter)
+               ;; for is-final = (= iter (1- (length segments)))
+               do (cond ( (and (cl-plusp iter)
+                               (save-excursion
+                                 (goto-char (match-end 1))
+                                 (looking-at-p (concat (regexp-quote segment) "/$"))))
+                          (goto-char (match-end 1))
+                          (setq best-match (match-end 1))
+                          (cl-decf iter))
+                        ( (re-search-forward
+                           (format "^\t\\{%s\\}\\(?1:%s/?\\)"
+                                   (int-to-string iter) segment)
+                           limit t)
+                          ;; (goto-char (match-beginning 1))
+                          (setq limit (save-excursion
+                                        (tf/forward-element)))
+                          (setq best-match (match-beginning 1))
+                          (when on-each-semgent-function
+                            (save-excursion
+                              (goto-char (match-beginning 1))
+                              (funcall on-each-semgent-function))))
+                        ( t (cl-return)))
+               finally (setq found t)))
 
     (if (and best-match (or found use-best-match))
         (goto-char best-match)
@@ -470,6 +469,8 @@ With a prefix argument, unfold all children."
          (goto-char (match-end 1)))))
 
 (defun tf/up-element ()
+  "Goto the parent element of the file at point.
+Joined directories will be traversed as one."
   (interactive)
   (goto-char (es-total-line-beginning-position))
   (tf/up-element-internal))
@@ -544,6 +545,9 @@ With a prefix argument, unfold all children."
     (kbd "r") 'isearch-backward
     (kbd "f") 'tf/find-file
     )
+  (add-hook 'isearch-mode-end-hook
+            'tf/register-isearch-unfolding
+            nil t)
   (font-lock-add-keywords
    'tree-find-mode '(("^.+/$" (0 'dired-directory append)))))
 
@@ -575,6 +579,14 @@ With a prefix argument, unfold all children."
         (completing-read ))
     ))
 
+(defun tf/register-isearch-unfolding ()
+  (unless isearch-mode-end-hook-quit
+    (let ((file-name (tf/get-filename)))
+      (unless (string-match-p "/$" file-name)
+        (setq file-name (file-name-directory file-name)))
+      (when file-name
+        (tf/folds-add file-name)))))
+
 ;;; Interface
 
 (cl-defun tree-find-open ()
@@ -605,7 +617,8 @@ With a prefix argument, unfold all children."
                        (setq tf/project-root
                              project-root))
                  (revert-buffer)
-                 (current-buffer)))))
+                 (current-buffer)
+                 ))))
 
     (when tree-find-window
       (select-window tree-find-window)
@@ -622,13 +635,6 @@ With a prefix argument, unfold all children."
     (set-window-dedicated-p tree-find-window t)
     (select-window tree-find-window)
     ))
-
-;; (add-hook 'isearch-mode-end-hook
-;;           (lambda ()
-;;             (message "isearch-mode-end-hook ran %s"
-;;                      isearch-mode-end-hook-quit)
-;;             )
-;;           nil t)
 
 (provide 'tree-find)
 ;;; tree-find.el ends here
