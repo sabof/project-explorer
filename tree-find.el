@@ -73,12 +73,15 @@
   (es-buffers-with-mode 'tree-find-mode))
 
 (defun tf/folds-add (file-name)
-  (setq tf/folds-open
-        (cons file-name
-              (cl-remove-if
-               (lambda (listed-file-name)
-                 (string-prefix-p listed-file-name file-name))
-               tf/folds-open))))
+  (cl-assert (file-exists-p file-name))
+  (prog1 (setq tf/folds-open
+               (cons file-name
+                     (cl-remove-if
+                      (lambda (listed-file-name)
+                        (string-prefix-p listed-file-name file-name))
+                      tf/folds-open)))
+    (cl-assert (cl-every 'file-exists-p tf/folds-open))
+    ))
 
 (defun tf/folds-remove (file-name)
   (let* (( parent
@@ -111,20 +114,11 @@
   (setq tf/folds-open))
 
 (defun tf/folds-restore ()
-  (setq tf/folds-open
-        (cl-remove-if-not (lambda (file-name)
-                            (save-excursion
-                              (and (tf/goto-file file-name)
-                                   (tf/location-foldable-p))))
-                          tf/folds-open))
-  (mapc (lambda (file-name)
-          (when (tf/goto-file file-name)
-            (tf/unfold)))
-        (cl-sort
-         tf/folds-open
-         '<
-         :key (lambda (it) (length (split-string it "/" t)))
-         )))
+  (let ((old-folds tf/folds-open))
+    (tf/folds-reset)
+    (cl-dolist (fold old-folds)
+      (tf/goto-file fold nil t)
+      (tf/unfold-internal))))
 
 (defun tf/folds-open-children (file-name)
   )
@@ -230,46 +224,40 @@
     (skip-chars-forward "\t")
     (point)))
 
-(defun tf/get-folding-overlay ()
+(cl-defun tf/unfold-internal ()
+  (tf/folds-add (tf/get-filename-internal))
   (save-excursion
-    (goto-char (es-total-line-beginning-position))
-    (message "%s" (length (overlays-at (line-end-position))))
-    (car (overlays-at (line-end-position)))))
-
+    (let* (( initial-indentation
+             (es-current-character-indentation)))
+      (while (let* (( line-end (line-end-position))
+                    ( ov (car (cl-remove-if-not
+                               (lambda (ov)
+                                 (= line-end (overlay-start ov)))
+                               (overlays-at line-end)))))
+               (when ov
+                 (delete-overlay ov)
+                 t))
+        (tf/up-element))
+      )))
 
 (cl-defun tf/unfold (&optional expanded)
   (interactive "P")
   (message "u")
   (let (( line-beginning
-          (es-total-line-beginning-position)))
+          (es-total-line-beginning-position))
+        ;; ( end (save-excursion
+        ;;         (or (tf/forward-element)
+        ;;             (point-max))))
+        )
     (when (/= (line-number-at-pos)
               (line-number-at-pos
                line-beginning))
       (goto-char line-beginning)
       (goto-char (1- (line-end-position)))
       ))
-  (tf/folds-add (tf/get-filename))
-  (save-excursion
-    (let* (( initial-indentation
-             (es-current-character-indentation))
-           ( end (save-excursion
-                   (or (tf/forward-element)
-                       (point-max)))))
-      (while (let ((ov (tf/get-folding-overlay)))
-               (when ov
-                 (delete-overlay ov)
-                 t))
-        (tf/up-element))
-      ;; (remove-overlays (es-total-line-beginning-position)
-      ;;                  (es-total-line-end-position)
-      ;;                  'is-tf-hider t)
-      ;; (unless expanded
-      ;;   (while (re-search-forward
-      ;;           (format "^\t\\{%s\\}[^\t\n].*/$" (1+ initial-indentation))
-      ;;           end
-      ;;           t)
-      ;;     (tf/fold)))
-      )))
+  (unless (tf/folded-p)
+    (cl-return-from tf/unfold))
+  (tf/unfold-internal))
 
 (defun tf/make-hiding-overlay (from to)
   (let ((ov (make-overlay from to)))
@@ -365,21 +353,23 @@
     ))
 
 (defun tf/fold-until (root ancestor-list)
-  (let* ((root-point (save-excursion (tf/goto-file root)))
-         (done nil))
-    (cl-dolist (path ancestor-list)
-      (cl-pushnew (tf/goto-file path) done)
-      (tf/fold-internal)
-      (cl-loop (tf/up-element)
-               (if (or (<= (point) root-point)
-                       (memq (point) done))
-                   (cl-return)
-                 (cl-pushnew (point) done)
-                 (tf/fold-internal)))
-      )
-    (goto-char root-point)
-    (tf/fold-internal)
-    ))
+  (save-excursion
+    (let* ((root-point (save-excursion (tf/goto-file root)))
+           (locations-to-fold (list root-point)))
+
+      (cl-dolist (path ancestor-list)
+        (cl-pushnew (tf/goto-file path) locations-to-fold)
+        (cl-loop (tf/up-element)
+                 (if (or (<= (point) root-point)
+                         (memq (point) locations-to-fold))
+                     (cl-return)
+                   (cl-pushnew (point) locations-to-fold)))
+        )
+      (message "%s" locations-to-fold)
+      (cl-dolist (location locations-to-fold)
+        (goto-char location)
+        (tf/fold-internal))
+      )))
 
 (cl-defun tf/fold ()
   (interactive)
@@ -459,9 +449,7 @@
       (tf/unfold arg)
     (tf/fold)))
 
-(defun tf/up-element ()
-  (interactive)
-  (goto-char (es-total-line-beginning-position))
+(defun tf/up-element-internal ()
   (let (( indentation (tf/current-indnetation)))
     (and (not (zerop indentation))
          (re-search-backward (format
@@ -470,24 +458,35 @@
                              nil t)
          (goto-char (match-end 1)))))
 
-(defun tf/get-filename ()
+(defun tf/up-element ()
   (interactive)
+  (goto-char (es-total-line-beginning-position))
+  (tf/up-element-internal))
+
+(defun tf/get-filename-internal ()
   (save-excursion
     (let* (( get-line-text
              (lambda ()
-               (goto-char (es-total-line-beginning))
+               (goto-char (line-beginning-position))
                (skip-chars-forward "\t ")
                (buffer-substring-no-properties
                 (point) (line-end-position))))
            ( result
              (funcall get-line-text)))
-      (while (tf/up-element)
+      (while (tf/up-element-internal)
         (setq result (concat (funcall get-line-text)
                              result)))
       (setq result (expand-file-name result))
       (when (file-directory-p result)
         (setq result (file-name-as-directory result)))
+      (cl-assert (file-exists-p result))
       result)))
+
+(defun tf/get-filename ()
+  (interactive)
+  (save-excursion
+    (goto-char (es-total-line-beginning))
+    (tf/get-filename-internal)))
 
 (defun tf/set-directory (dir)
   (interactive
