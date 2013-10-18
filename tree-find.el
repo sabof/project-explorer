@@ -240,14 +240,20 @@
         (tf/up-element))
       )))
 
+(defun tf/unfold-expanded-internal ()
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (let (( end (save-excursion (tf/forward-element))))
+      (while (re-search-forward "/$" end t)
+        (tf/unfold-internal)))))
+
+
 (cl-defun tf/unfold (&optional expanded)
   (interactive "P")
   (message "u")
   (let (( line-beginning
           (es-total-line-beginning-position))
-        ;; ( end (save-excursion
-        ;;         (or (tf/forward-element)
-        ;;             (point-max))))
+
         )
     (when (/= (line-number-at-pos)
               (line-number-at-pos
@@ -255,6 +261,9 @@
       (goto-char line-beginning)
       (goto-char (1- (line-end-position)))
       ))
+  (when expanded
+    (tf/unfold-expanded-internal)
+    (cl-return-from tf/unfold))
   (unless (tf/folded-p)
     (cl-return-from tf/unfold))
   (tf/unfold-internal))
@@ -444,8 +453,10 @@
     (find-file file-name)))
 
 (defun tf/tab (&optional arg)
+  "Toggle folding at point.
+With a prefix argument, unfold all children."
   (interactive "P")
-  (if (tf/folded-p)
+  (if (or arg (tf/folded-p))
       (tf/unfold arg)
     (tf/fold)))
 
@@ -483,6 +494,7 @@
       result)))
 
 (defun tf/get-filename ()
+  "Return the aboslute file-name of the file at point."
   (interactive)
   (save-excursion
     (goto-char (es-total-line-beginning))
