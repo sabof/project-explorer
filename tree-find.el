@@ -230,8 +230,16 @@
     (skip-chars-forward "\t")
     (point)))
 
+(defun tf/get-folding-overlay ()
+  (save-excursion
+    (goto-char (es-total-line-beginning-position))
+    (message "%s" (length (overlays-at (line-end-position))))
+    (car (overlays-at (line-end-position)))))
+
+
 (cl-defun tf/unfold (&optional expanded)
   (interactive "P")
+  (message "u")
   (let (( line-beginning
           (es-total-line-beginning-position)))
     (when (/= (line-number-at-pos)
@@ -246,12 +254,12 @@
              (es-current-character-indentation))
            ( end (save-excursion
                    (or (tf/forward-element)
-                       (point-max))))
-           ( ov (save-excursion
-                  (goto-char (es-total-line-beginning-position))
-                  (car (overlays-at (line-end-position))))))
-      (when ov
-        (delete-overlay ov))
+                       (point-max)))))
+      (while (let ((ov (tf/get-folding-overlay)))
+               (when ov
+                 (delete-overlay ov)
+                 t))
+        (tf/up-element))
       ;; (remove-overlays (es-total-line-beginning-position)
       ;;                  (es-total-line-end-position)
       ;;                  'is-tf-hider t)
@@ -277,7 +285,7 @@
     )
   )
 
-(defun tf/goto-file (file-name &optional on-each-semgent-function goto-best-match)
+(defun tf/goto-file (file-name &optional on-each-semgent-function use-best-match)
   ;; FIXME: Doesn't work with combined segments
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
@@ -314,10 +322,11 @@
                             (funcall on-each-semgent-function))))
                       ( t (cl-return)))
              finally (setq found t))
-    (goto-char (if (and best-match (or found goto-best-match))
-                   best-match
-                 init-pos))
-    (and found best-match)))
+
+    (if (and best-match (or found use-best-match))
+        (goto-char best-match)
+      (goto-char init-pos)
+      nil)))
 
 (defun tf/show-file (file-name)
   (tf/goto-file file-name 'tf/unfold))
@@ -335,11 +344,7 @@
          (/= (1+ init-line) next-line))
     ))
 
-(cl-defun tf/fold ()
-  (interactive)
-  (when (or (looking-at ".*\n?\\'")
-            (tf/folded-p))
-    (cl-return-from tf/fold))
+(defun tf/fold-internal ()
   (let* (( indent
            (save-excursion
              (goto-char (line-beginning-position))
@@ -354,16 +359,35 @@
                              (length indent))))
                (if (re-search-forward regex nil t)
                    (line-end-position 0)
-                 (point-max)))))
-         ( name (tf/get-filename))
-         ( unfolded-contained
-           (tf/folds-remove name)))
-    (save-excursion
-      (cl-dolist (file-name unfolded-contained)
-        (when (tf/goto-file file-name)
-          (tf/fold))))
+                 (point-max))))))
     (tf/make-hiding-overlay (line-end-position 1)
                             end)
+    ))
+
+(defun tf/fold-until (root ancestor-list)
+  (let* ((root-point (save-excursion (tf/goto-file root)))
+         (done nil))
+    (cl-dolist (path ancestor-list)
+      (cl-pushnew (tf/goto-file path) done)
+      (tf/fold-internal)
+      (cl-loop (tf/up-element)
+               (if (or (<= (point) root-point)
+                       (memq (point) done))
+                   (cl-return)
+                 (cl-pushnew (point) done)
+                 (tf/fold-internal)))
+      )
+    (goto-char root-point)
+    (tf/fold-internal)
+    ))
+
+(cl-defun tf/fold ()
+  (interactive)
+  (when (or (looking-at-p ".*\n?\\'")
+            (tf/folded-p))
+    (cl-return-from tf/fold))
+  (let* (( file-name (tf/get-filename)))
+    (tf/fold-until file-name (tf/folds-remove file-name))
     ))
 
 (defun tf/up-directory ()
