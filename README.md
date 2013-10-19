@@ -1,13 +1,13 @@
-# tree-find
+# project-explorer
 A tree project explorer.
 ![screenshot](https://github.com/sabof/project-explorer/raw/master/screenshot.png)
 
 ##Features:
 
-    * Grouing of folders containing a single folder
     * Folding
-    * Single key navigation keybindings
+    * Grouing of folders containing a single folder
     * I-search support
+    * Single key navigation keybindings
 
 ##Main key-bindings:
 
