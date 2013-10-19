@@ -32,6 +32,8 @@
 
 (require 'cl-lib)
 (require 'es-lib)
+(require 'hideshow)
+(require 'dired)
 
 (defgroup project-explorer nil
   "A project explorer sidebar."
@@ -68,7 +70,8 @@
   (lambda ()
     (if (fboundp 'projectile-project-root)
         (projectile-project-root)
-      (locate-dominating-file default-directory ".git"))))
+      (expand-file-name
+       (locate-dominating-file default-directory ".git")))))
 
 (cl-defun pe/get-directory-tree-simple (dir done-func)
   (let (walker)
@@ -152,7 +155,7 @@
   (when (stringp branch)
     (cl-return-from pe/sort branch))
   (let (( new-rest
-          (sort (rest branch)
+          (sort (cdr branch)
                 (lambda (a b)
                   (cond ( (and (consp a)
                                (stringp b))
@@ -177,7 +180,7 @@
                 (insert (make-string depth ?\t)
                         (car branch) "/\n")
                 (setq start (point)))
-              (cl-dolist (item (rest branch))
+              (cl-dolist (item (cdr branch))
                 (pe/print-indented-tree item (1+ depth)))
               (when (and start (> (point) start))
                 ;; (message "ran %s %s" start (point))
@@ -364,7 +367,9 @@
   (save-excursion
     (let* ((root-point (save-excursion (pe/goto-file root)))
            (locations-to-fold (list root-point)))
-
+      (cl-assert root-point nil
+                 "pe/goto-file returned nil for %s"
+                 root)
       (cl-dolist (path ancestor-list)
         (cl-pushnew (pe/goto-file path) locations-to-fold)
         (cl-loop (pe/up-element)
@@ -437,7 +442,7 @@
                          (if (consp it)
                              (pe/flatten-tree it current-prefix)
                            (list (concat current-prefix "/" it))))
-                       (rest tree))))
+                       (cdr tree))))
   )
 
 ;; (defun pe/completing-read-files ()
@@ -470,6 +475,10 @@
     (kbd "[") 'pe/backward-element
     (kbd "n") 'next-line
     (kbd "p") 'previous-line
+    (kbd "j") 'next-line
+    (kbd "k") 'previous-line
+    (kbd "l") 'forward-char
+    (kbd "h") 'backward-char
     ;; (kbd "^") 'pe/up-directory
     (kbd "<return>") 'pe/return
     (kbd "<mouse-2>") 'pe/middle-click
@@ -548,7 +557,7 @@
     (error "\"%s\" is not a directory"
            dir))
   (setq dir (file-name-as-directory dir))
-  (setq default-directory dir)
+  (setq default-directory (expand-file-name dir))
   (revert-buffer)
   )
 
