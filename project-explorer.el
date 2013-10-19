@@ -472,7 +472,7 @@
   (es-define-keys project-explorer-mode-map
     (kbd "u") 'pe/up-element
     (kbd "d") 'pe/set-directory
-    (kbd "<tab>") 'pe/tab
+    (kbd "TAB") 'pe/tab
     (kbd "M-}") 'pe/forward-element
     (kbd "M-{") 'pe/backward-element
     (kbd "]") 'pe/forward-element
@@ -484,7 +484,7 @@
     (kbd "l") 'forward-char
     (kbd "h") 'backward-char
     ;; (kbd "^") 'pe/up-directory
-    (kbd "<return>") 'pe/return
+    (kbd "RET") 'pe/return
     (kbd "<mouse-2>") 'pe/middle-click
     (kbd "q") 'pe/quit
     (kbd "s") 'isearch-forward
