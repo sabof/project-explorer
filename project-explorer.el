@@ -54,6 +54,12 @@
   :group 'project-explorer
   :type 'integer)
 
+(defcustom pe/goto-current-file-on-open t
+  "When true, focus on the current file each time project
+explorer is revealed."
+  :group 'project-explorer
+  :type 'boolean)
+
 (defcustom pe/omit-regex "^\\.\\|^#\\|~$"
   "Specify which files to omit"
   :group 'project-explorer
@@ -428,8 +434,8 @@
         ( project-explorer-buffers (pe/get-project-explorer-buffers)))
     (cl-find project-root
              project-explorer-buffers
-             :key (lambda (project-project-explorer-buffer)
-                    (with-current-buffer project-project-explorer-buffer
+             :key (lambda (project-explorer-buffer)
+                    (with-current-buffer project-explorer-buffer
                       pe/project-root))
              :test 'string-equal)))
 
@@ -501,6 +507,12 @@
   (font-lock-add-keywords
    'project-explorer-mode '(("^.+/$" (0 'dired-directory append)))))
 
+(defun pe/show-file-internal (file-name)
+  (when (pe/goto-file file-name)
+    (save-excursion
+      (pe/up-element-internal)
+      (pe/unfold-internal))))
+
 ;;; Interface
 
 (cl-defun pe/fold ()
@@ -519,10 +531,7 @@
          (or file-name
              (buffer-file-name))))
   (project-explorer-open)
-  (when (pe/goto-file file-name)
-    (save-excursion
-      (pe/up-element-internal)
-      (pe/unfold-internal))))
+  (pe/show-file-internal file-name))
 
 (defun pe/quit ()
   (interactive)
@@ -614,14 +623,17 @@ Joined directories will be traversed as one."
 (cl-defun project-explorer-open ()
   "Show the `project-explorer-buffer', of the current project."
   (interactive)
-  (let* (( project-root (funcall pe/project-root-function))
+  (let* (( origin-file-name
+           (expand-file-name
+            (buffer-file-name)))
+         ( project-root (funcall pe/project-root-function))
          ( project-explorer-buffers (pe/get-project-explorer-buffers))
          ( project-project-explorer-existing-buffer
            (cl-find project-root
                     project-explorer-buffers
-                    :key (lambda (project-project-explorer-buffer)
+                    :key (lambda (project-explorer-buffer)
                            (with-current-buffer
-                               project-project-explorer-buffer
+                               project-explorer-buffer
                              pe/project-root))
                     :test 'string-equal))
          ( project-explorer-window
@@ -631,7 +643,7 @@ Joined directories will be traversed as one."
                    (eq (window-buffer project-explorer-window)
                        project-project-explorer-existing-buffer))
                  (window-list))))
-         ( project-project-explorer-buffer
+         ( project-explorer-buffer
            (or project-project-explorer-existing-buffer
                (with-current-buffer
                    (generate-new-buffer "*project-explorer*")
@@ -641,10 +653,18 @@ Joined directories will be traversed as one."
                              project-root))
                  (revert-buffer)
                  (current-buffer)
-                 ))))
+                 )))
+         ( goto-maybe
+           (lambda ()
+             (when (and origin-file-name
+                        pe/goto-current-file-on-open)
+               (with-current-buffer
+                   project-explorer-buffer
+                 (pe/show-file-internal origin-file-name))))))
 
     (when project-explorer-window
       (select-window project-explorer-window)
+      (funcall goto-maybe)
       (cl-return-from project-explorer-open))
 
     (cl-dolist (window (window-list))
@@ -652,11 +672,12 @@ Joined directories will be traversed as one."
            (> (length (window-list)) 1)
            (delete-window window)))
     (setq project-explorer-window (split-window (frame-root-window)
-                                         (- (frame-width) pe/width) pe/side))
+                                                (- (frame-width) pe/width) pe/side))
     (set-window-parameter project-explorer-window 'window-side pe/side)
-    (set-window-buffer project-explorer-window project-project-explorer-buffer)
+    (set-window-buffer project-explorer-window project-explorer-buffer)
     (set-window-dedicated-p project-explorer-window t)
     (select-window project-explorer-window)
+    (funcall goto-maybe)
     ))
 
 (provide 'project-explorer)
