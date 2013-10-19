@@ -430,7 +430,7 @@
              project-explorer-buffers
              :key (lambda (project-project-explorer-buffer)
                     (with-current-buffer project-project-explorer-buffer
-                      default-directory))
+                      pe/project-root))
              :test 'string-equal)))
 
 (defun pe/flatten-tree (tree &optional prefix)
@@ -511,6 +511,18 @@
   (let* (( file-name (pe/get-filename)))
     (pe/fold-until file-name (pe/folds-remove file-name))
     ))
+
+(defun pe/show-file (&optional file-name)
+  (interactive)
+  (setq file-name
+        (expand-file-name
+         (or file-name
+             (buffer-file-name))))
+  (project-explorer-open)
+  (when (pe/goto-file file-name)
+    (save-excursion
+      (pe/up-element-internal)
+      (pe/unfold-internal))))
 
 (defun pe/quit ()
   (interactive)
