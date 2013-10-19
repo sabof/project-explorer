@@ -9,7 +9,7 @@ A tree project explorer.
     * I-search support
     * Single key navigation keybindings
 
-##Main commands
+##Main commands:
 
     project-explorer-open -- open the sidebar
 
