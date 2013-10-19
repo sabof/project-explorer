@@ -269,7 +269,6 @@
 
 (cl-defun pe/unfold (&optional expanded)
   (interactive "P")
-  (message "u")
   (let (( line-beginning
           (es-total-line-beginning-position))
 
@@ -378,7 +377,6 @@
                      (cl-return)
                    (cl-pushnew (point) locations-to-fold)))
         )
-      (message "%s" locations-to-fold)
       (cl-dolist (location locations-to-fold)
         (goto-char location)
         (pe/fold-internal))
