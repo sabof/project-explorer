@@ -1,4 +1,4 @@
-;;; project-explorer.el --- A general-purpose sidebar project explorer -*- lexical-binding: t -*-
+;;; project-explorer.el --- A project explorer sidebar -*- lexical-binding: t -*-
 ;;; Version: 0.1
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
@@ -33,13 +33,31 @@
 (require 'cl-lib)
 (require 'es-lib)
 
+(defgroup project-explorer nil
+  "A project explorer sidebar."
+  :group 'convenience)
+
 (defvar pe/directory-files-function
   'pe/get-directory-tree-simple)
-(defvar pe/side 'left)
-(defvar pe/width 40)
-(defvar pe/omit t)
-(defvar pe/omit-regex
-  "^\\.\\|^#\\|~$")
+
+(defcustom pe/side 'left
+  "On which side to display the sidebar."
+  :group 'project-explorer
+  :type '(radio
+          (const :tag "Left" left)
+          (const :tag "Right" right)))
+
+(defcustom pe/width 40
+  "Width of the side-bar."
+  :group 'project-explorer
+  :type 'integer)
+
+(defcustom pe/omit-regex "^\\.\\|^#\\|~$"
+  "Specify which files to omit"
+  :group 'project-explorer
+  :type '(choice
+          (const :tag "Show all files" nil)
+          (string :tag "Files matching this regex won't be shown")))
 
 (defvar-local pe/data nil)
 (defvar-local pe/folds-open nil)
@@ -75,10 +93,11 @@
 (cl-defun pe/revert-buffer (&rest ignore)
   (let (( inhibit-read-only t)
         ( project-explorer-buffer (current-buffer))
-        ( starting-name (let ((\default-directory
-                               (or pe/previous-directory
-                                   default-directory)))
-                          (pe/get-filename)))
+        ( starting-name
+          (let ((\default-directory
+                 (or pe/previous-directory
+                     default-directory)))
+            (pe/get-filename)))
         ( window-start (window-start))
         ( starting-column (current-column)))
     (erase-buffer)
@@ -112,7 +131,7 @@
     ))
 
 (defun pe/file-interesting-p (name)
-  (if pe/omit
+  (if pe/omit-regex
       (not (string-match-p pe/omit-regex name))
     t))
 
@@ -166,8 +185,6 @@
                 )
               ))))
 
-;;; FOLDS ->
-
 (defun pe/folds-add (file-name)
   (cl-assert (file-exists-p file-name) t)
   (prog1 (setq pe/folds-open
@@ -215,8 +232,6 @@
     (cl-dolist (fold old-folds)
       (pe/goto-file fold nil t)
       (pe/unfold-internal))))
-
-;;; TEXT ->
 
 (defun pe/current-indnetation ()
   (- (pe/tab-ending)
@@ -425,11 +440,11 @@
                        (rest tree))))
   )
 
-(defun pe/completing-read-files ()
-  (let ((flat-tree (with-current-buffer pe/get-current-project-explorer-buffer
-                     ))
-        (completing-read ))
-    ))
+;; (defun pe/completing-read-files ()
+;;   (let ((flat-tree (with-current-buffer pe/get-current-project-explorer-buffer
+;;                      ))
+;;         (completing-read ))
+;;     ))
 
 (defun pe/register-isearch-unfolding ()
   (unless isearch-mode-end-hook-quit
