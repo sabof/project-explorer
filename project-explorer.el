@@ -1,12 +1,12 @@
-;;; tree-find.el --- Find-based project explorer -*- lexical-binding: t -*-
+;;; project-explorer.el --- Find-based project explorer -*- lexical-binding: t -*-
 ;;; Version: 0.1
 ;;; Author: sabof
-;;; URL: https://github.com/sabof/tree-find
+;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "1.0") (es-lib "0.3"))
 
 ;;; Commentary:
 
-;; The project is hosted at https://github.com/sabof/tree-find
+;; The project is hosted at https://github.com/sabof/project-explorer
 ;; The latest version, and all the relevant information can be found there.
 
 ;;; License:
@@ -33,33 +33,33 @@
 (require 'cl-lib)
 (require 'es-lib)
 
-(defvar tf/directory-files-function
-  'tf/get-directory-tree-simple)
-(defvar tf/side 'left)
-(defvar tf/width 40)
-(defvar tf/omit t)
-(defvar tf/omit-regex
+(defvar pe/directory-files-function
+  'pe/get-directory-tree-simple)
+(defvar pe/side 'left)
+(defvar pe/width 40)
+(defvar pe/omit t)
+(defvar pe/omit-regex
   "^\\.\\|^#")
 
-(defvar-local tf/data nil)
-(defvar-local tf/folds-open nil)
-(defvar-local tf/previous-directory nil)
-(defvar-local tf/project-root nil)
+(defvar-local pe/data nil)
+(defvar-local pe/folds-open nil)
+(defvar-local pe/previous-directory nil)
+(defvar-local pe/project-root nil)
 
-(defvar tf/project-root-function
+(defvar pe/project-root-function
   (lambda ()
     (if (fboundp 'projectile-project-root)
         (projectile-project-root)
       (locate-dominating-file default-directory ".git"))))
 
-(cl-defun tf/get-directory-tree-simple (dir done-func)
+(cl-defun pe/get-directory-tree-simple (dir done-func)
   (let (walker)
     (setq walker
           (lambda (dir)
             (let (( files (cl-remove-if
                            (lambda (file)
                              (or (member file '("." ".."))
-                                 (not (tf/file-interesting-p file))))
+                                 (not (pe/file-interesting-p file))))
                            (directory-files dir))))
               (cons (file-name-nondirectory (directory-file-name dir))
                     (mapcar (lambda (file)
@@ -69,64 +69,64 @@
                             files)))))
     (funcall done-func (funcall walker dir))))
 
-(defun tf/get-tree-find-buffers ()
-  (es-buffers-with-mode 'tree-find-mode))
+(defun pe/get-project-explorer-buffers ()
+  (es-buffers-with-mode 'project-explorer-mode))
 
-(cl-defun tf/revert-buffer (&rest ignore)
+(cl-defun pe/revert-buffer (&rest ignore)
   (let (( inhibit-read-only t)
-        ( tree-find-buffer (current-buffer))
-        ( starting-name (tf/get-filename))
+        ( project-explorer-buffer (current-buffer))
+        ( starting-name (pe/get-filename))
         ( starting-column (current-column)))
     (erase-buffer)
     (delete-all-overlays)
     (insert "Searching for files...")
-    (funcall tf/directory-files-function
+    (funcall pe/directory-files-function
              default-directory
              (lambda (result)
                (when result
-                 (with-current-buffer tree-find-buffer
-                   (setq tf/data result)
+                 (with-current-buffer project-explorer-buffer
+                   (setq pe/data result)
                    (let ((inhibit-read-only t))
                      (erase-buffer)
-                     (tf/print-indented-tree
-                      (tf/compress-tree
-                       (tf/sort result)))
+                     (pe/print-indented-tree
+                      (pe/compress-tree
+                       (pe/sort result)))
                      (font-lock-fontify-buffer)
                      (goto-char (point-min)))
                    ))))
-    (if (not (string-equal tf/previous-directory
+    (if (not (string-equal pe/previous-directory
                            default-directory))
-        (tf/folds-reset)
-      (tf/folds-restore)
+        (pe/folds-reset)
+      (pe/folds-restore)
       (when starting-name
-        (tf/goto-file starting-name nil t)
+        (pe/goto-file starting-name nil t)
         (move-to-column starting-column)))
-    (setq tf/previous-directory default-directory)
+    (setq pe/previous-directory default-directory)
     (when (eq this-command 'revert-buffer)
       (message "Refresh complete"))
     ))
 
-(defun tf/file-interesting-p (name)
-  (if tf/omit
-      (not (string-match-p tf/omit-regex name))
+(defun pe/file-interesting-p (name)
+  (if pe/omit
+      (not (string-match-p pe/omit-regex name))
     t))
 
-(cl-defun tf/compress-tree (branch)
+(cl-defun pe/compress-tree (branch)
   (cond ( (not (consp branch))
           branch)
         ( (= (length branch) 1)
           branch)
         ( (and (= (length branch) 2)
                (consp (cl-second branch)))
-          (tf/compress-tree
+          (pe/compress-tree
            (cons (concat (car branch) "/" (cl-caadr branch))
                  (cl-cdadr branch))))
         ( t (cons (car branch)
-                  (mapcar 'tf/compress-tree (cdr branch))))))
+                  (mapcar 'pe/compress-tree (cdr branch))))))
 
-(cl-defun tf/sort (branch)
+(cl-defun pe/sort (branch)
   (when (stringp branch)
-    (cl-return-from tf/sort branch))
+    (cl-return-from pe/sort branch))
   (let (( new-rest
           (sort (rest branch)
                 (lambda (a b)
@@ -139,11 +139,11 @@
                         ( (and (consp a) (consp b))
                           (string< (car a) (car b)))
                         ( t (string< a b)))))))
-    (setcdr branch (mapcar 'tf/sort new-rest))
+    (setcdr branch (mapcar 'pe/sort new-rest))
     branch
     ))
 
-(cl-defun tf/print-indented-tree (branch &optional (depth -1))
+(cl-defun pe/print-indented-tree (branch &optional (depth -1))
   (let (start)
     (cond ( (stringp branch)
             (insert (make-string depth ?\t)
@@ -154,27 +154,27 @@
                         (car branch) "/\n")
                 (setq start (point)))
               (cl-dolist (item (rest branch))
-                (tf/print-indented-tree item (1+ depth)))
+                (pe/print-indented-tree item (1+ depth)))
               (when (and start (> (point) start))
                 ;; (message "ran %s %s" start (point))
-                (tf/make-hiding-overlay (1- start) (1- (point)))
+                (pe/make-hiding-overlay (1- start) (1- (point)))
                 )
               ))))
 
 ;;; FOLDS ->
 
-(defun tf/folds-add (file-name)
+(defun pe/folds-add (file-name)
   (cl-assert (file-exists-p file-name))
-  (prog1 (setq tf/folds-open
+  (prog1 (setq pe/folds-open
                (cons file-name
                      (cl-remove-if
                       (lambda (listed-file-name)
                         (string-prefix-p listed-file-name file-name))
-                      tf/folds-open)))
-    (cl-assert (cl-every 'file-exists-p tf/folds-open))
+                      pe/folds-open)))
+    (cl-assert (cl-every 'file-exists-p pe/folds-open))
     ))
 
-(defun tf/folds-remove (file-name)
+(defun pe/folds-remove (file-name)
   (let* (( parent
            (file-name-directory
             (directory-file-name
@@ -183,48 +183,48 @@
            (cl-remove-if
             (lambda (listed-file-name)
               (string-prefix-p file-name listed-file-name))
-            tf/folds-open))
+            pe/folds-open))
          ( removed-folds
            (cl-sort (cl-set-difference
-                     tf/folds-open
+                     pe/folds-open
                      new-folds
                      :test 'string-equal)
                     '>
                     :key (lambda (it) (length (split-string it "/" t)))
                     )))
-    (setq tf/folds-open new-folds)
+    (setq pe/folds-open new-folds)
     (when (and parent
                (not (string-equal parent default-directory))
                (not (cl-find-if (lambda (file-name)
                                   (string-prefix-p parent file-name))
-                                tf/folds-open)))
-      (push parent tf/folds-open))
+                                pe/folds-open)))
+      (push parent pe/folds-open))
     removed-folds))
 
-(defun tf/folds-reset ()
-  (setq tf/folds-open))
+(defun pe/folds-reset ()
+  (setq pe/folds-open))
 
-(defun tf/folds-restore ()
-  (let ((old-folds tf/folds-open))
-    (tf/folds-reset)
+(defun pe/folds-restore ()
+  (let ((old-folds pe/folds-open))
+    (pe/folds-reset)
     (cl-dolist (fold old-folds)
-      (tf/goto-file fold nil t)
-      (tf/unfold-internal))))
+      (pe/goto-file fold nil t)
+      (pe/unfold-internal))))
 
 ;;; TEXT ->
 
-(defun tf/current-indnetation ()
-  (- (tf/tab-ending)
+(defun pe/current-indnetation ()
+  (- (pe/tab-ending)
      (line-beginning-position)))
 
-(defun tf/tab-ending ()
+(defun pe/tab-ending ()
   (save-excursion
     (goto-char (line-beginning-position))
     (skip-chars-forward "\t")
     (point)))
 
-(cl-defun tf/unfold-internal ()
-  (tf/folds-add (tf/get-filename-internal))
+(cl-defun pe/unfold-internal ()
+  (pe/folds-add (pe/get-filename-internal))
   (save-excursion
     (let* (( initial-indentation
              (es-current-character-indentation)))
@@ -236,17 +236,17 @@
                (when ov
                  (delete-overlay ov)
                  t))
-        (tf/up-element-internal))
+        (pe/up-element-internal))
       )))
 
-(defun tf/unfold-expanded-internal ()
+(defun pe/unfold-expanded-internal ()
   (save-excursion
     (goto-char (line-beginning-position))
-    (let (( end (save-excursion (tf/forward-element))))
+    (let (( end (save-excursion (pe/forward-element))))
       (while (re-search-forward "/$" end t)
-        (tf/unfold-internal)))))
+        (pe/unfold-internal)))))
 
-(cl-defun tf/unfold (&optional expanded)
+(cl-defun pe/unfold (&optional expanded)
   (interactive "P")
   (message "u")
   (let (( line-beginning
@@ -260,13 +260,13 @@
       (goto-char (1- (line-end-position)))
       ))
   (when expanded
-    (tf/unfold-expanded-internal)
-    (cl-return-from tf/unfold))
-  (unless (tf/folded-p)
-    (cl-return-from tf/unfold))
-  (tf/unfold-internal))
+    (pe/unfold-expanded-internal)
+    (cl-return-from pe/unfold))
+  (unless (pe/folded-p)
+    (cl-return-from pe/unfold))
+  (pe/unfold-internal))
 
-(defun tf/make-hiding-overlay (from to)
+(defun pe/make-hiding-overlay (from to)
   (let ((ov (make-overlay from to)))
     (overlay-put ov 'isearch-open-invisible-temporary
                  'hs-isearch-show-temporary)
@@ -280,7 +280,7 @@
     )
   )
 
-(defun tf/goto-file (file-name &optional on-each-semgent-function use-best-match)
+(defun pe/goto-file (file-name &optional on-each-semgent-function use-best-match)
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
                          (substring file-name (length default-directory))
@@ -308,7 +308,7 @@
                            limit t)
                           ;; (goto-char (match-beginning 1))
                           (setq limit (save-excursion
-                                        (tf/forward-element)))
+                                        (pe/forward-element)))
                           (setq best-match (match-beginning 1))
                           (when on-each-semgent-function
                             (save-excursion
@@ -322,7 +322,7 @@
       (goto-char init-pos)
       nil)))
 
-(defun tf/fold-internal ()
+(defun pe/fold-internal ()
   (let* (( indent
            (save-excursion
              (goto-char (line-beginning-position))
@@ -338,18 +338,18 @@
                (if (re-search-forward regex nil t)
                    (line-end-position 0)
                  (point-max))))))
-    (tf/make-hiding-overlay (line-end-position 1)
+    (pe/make-hiding-overlay (line-end-position 1)
                             end)
     ))
 
-(defun tf/fold-until (root ancestor-list)
+(defun pe/fold-until (root ancestor-list)
   (save-excursion
-    (let* ((root-point (save-excursion (tf/goto-file root)))
+    (let* ((root-point (save-excursion (pe/goto-file root)))
            (locations-to-fold (list root-point)))
 
       (cl-dolist (path ancestor-list)
-        (cl-pushnew (tf/goto-file path) locations-to-fold)
-        (cl-loop (tf/up-element)
+        (cl-pushnew (pe/goto-file path) locations-to-fold)
+        (cl-loop (pe/up-element)
                  (if (or (<= (point) root-point)
                          (memq (point) locations-to-fold))
                      (cl-return)
@@ -358,10 +358,10 @@
       (message "%s" locations-to-fold)
       (cl-dolist (location locations-to-fold)
         (goto-char location)
-        (tf/fold-internal))
+        (pe/fold-internal))
       )))
 
-(defun tf/folded-p ()
+(defun pe/folded-p ()
   (let (( ovs (save-excursion
                 (goto-char (es-total-line-beginning-position))
                 (goto-char (line-end-position))
@@ -370,8 +370,8 @@
                (overlay-get ov 'is-tf-hider))
              ovs)))
 
-(defun tf/up-element-internal ()
-  (let (( indentation (tf/current-indnetation)))
+(defun pe/up-element-internal ()
+  (let (( indentation (pe/current-indnetation)))
     (and (not (zerop indentation))
          (re-search-backward (format
                               "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
@@ -379,7 +379,7 @@
                              nil t)
          (goto-char (match-end 1)))))
 
-(defun tf/get-filename-internal ()
+(defun pe/get-filename-internal ()
   (save-excursion
     (let* (( get-line-text
              (lambda ()
@@ -389,7 +389,7 @@
                 (point) (line-end-position))))
            ( result
              (funcall get-line-text)))
-      (while (tf/up-element-internal)
+      (while (pe/up-element-internal)
         (setq result (concat (funcall get-line-text)
                              result)))
       (setq result (expand-file-name result))
@@ -398,91 +398,91 @@
       (cl-assert (file-exists-p result))
       result)))
 
-(defun tf/get-current-tree-find-buffer ()
-  (let (( project-root (funcall tf/project-root-function))
-        ( tree-find-buffers (tf/get-tree-find-buffers)))
+(defun pe/get-current-project-explorer-buffer ()
+  (let (( project-root (funcall pe/project-root-function))
+        ( project-explorer-buffers (pe/get-project-explorer-buffers)))
     (cl-find project-root
-             tree-find-buffers
-             :key (lambda (project-tree-find-buffer)
-                    (with-current-buffer project-tree-find-buffer
+             project-explorer-buffers
+             :key (lambda (project-project-explorer-buffer)
+                    (with-current-buffer project-project-explorer-buffer
                       default-directory))
              :test 'string-equal)))
 
-(defun tf/flatten-tree (tree &optional prefix)
+(defun pe/flatten-tree (tree &optional prefix)
   (let ((current-prefix (if prefix
                             (concat prefix "/" (car tree))
                           (car tree))))
     (cl-reduce 'append
                (mapcar (lambda (it)
                          (if (consp it)
-                             (tf/flatten-tree it current-prefix)
+                             (pe/flatten-tree it current-prefix)
                            (list (concat current-prefix "/" it))))
                        (rest tree))))
   )
 
-(defun tf/completing-read-files ()
-  (let ((flat-tree (with-current-buffer tf/get-current-tree-find-buffer
+(defun pe/completing-read-files ()
+  (let ((flat-tree (with-current-buffer pe/get-current-project-explorer-buffer
                      ))
         (completing-read ))
     ))
 
-(defun tf/register-isearch-unfolding ()
+(defun pe/register-isearch-unfolding ()
   (unless isearch-mode-end-hook-quit
-    (let ((file-name (tf/get-filename)))
+    (let ((file-name (pe/get-filename)))
       (unless (string-match-p "/$" file-name)
         (setq file-name (file-name-directory file-name)))
       (when file-name
-        (tf/folds-add file-name)))))
+        (pe/folds-add file-name)))))
 
-(define-derived-mode tree-find-mode special-mode
+(define-derived-mode project-explorer-mode special-mode
   "Tree find"
   "Display results of find as a folding tree"
   (setq-local revert-buffer-function
-              'tf/revert-buffer)
+              'pe/revert-buffer)
   (setq-local tab-width 2)
-  (es-define-keys tree-find-mode-map
-    (kbd "u") 'tf/up-element
-    (kbd "d") 'tf/set-directory
-    (kbd "<tab>") 'tf/tab
-    (kbd "M-}") 'tf/forward-element
-    (kbd "M-{") 'tf/backward-element
-    (kbd "]") 'tf/forward-element
-    (kbd "[") 'tf/backward-element
+  (es-define-keys project-explorer-mode-map
+    (kbd "u") 'pe/up-element
+    (kbd "d") 'pe/set-directory
+    (kbd "<tab>") 'pe/tab
+    (kbd "M-}") 'pe/forward-element
+    (kbd "M-{") 'pe/backward-element
+    (kbd "]") 'pe/forward-element
+    (kbd "[") 'pe/backward-element
     (kbd "n") 'next-line
     (kbd "p") 'previous-line
-    ;; (kbd "^") 'tf/up-directory
-    (kbd "<return>") 'tf/return
-    (kbd "<mouse-2>") 'tf/middle-click
-    (kbd "q") 'tf/quit
+    ;; (kbd "^") 'pe/up-directory
+    (kbd "<return>") 'pe/return
+    (kbd "<mouse-2>") 'pe/middle-click
+    (kbd "q") 'pe/quit
     (kbd "s") 'isearch-forward
     (kbd "r") 'isearch-backward
-    (kbd "f") 'tf/find-file
+    (kbd "f") 'pe/find-file
     )
   (add-hook 'isearch-mode-end-hook
-            'tf/register-isearch-unfolding
+            'pe/register-isearch-unfolding
             nil t)
   (font-lock-add-keywords
-   'tree-find-mode '(("^.+/$" (0 'dired-directory append)))))
+   'project-explorer-mode '(("^.+/$" (0 'dired-directory append)))))
 
 ;;; Interface
 
-(cl-defun tf/fold ()
+(cl-defun pe/fold ()
   (interactive)
   (when (or (looking-at-p ".*\n?\\'")
-            (tf/folded-p))
-    (cl-return-from tf/fold))
-  (let* (( file-name (tf/get-filename)))
-    (tf/fold-until file-name (tf/folds-remove file-name))
+            (pe/folded-p))
+    (cl-return-from pe/fold))
+  (let* (( file-name (pe/get-filename)))
+    (pe/fold-until file-name (pe/folds-remove file-name))
     ))
 
-(defun tf/quit ()
+(defun pe/quit ()
   (interactive)
   (let ((window (selected-window)))
     (quit-window)
     (when (window-live-p window)
       (delete-window))))
 
-(defun tf/forward-element (&optional arg)
+(defun pe/forward-element (&optional arg)
   (interactive "p")
   (setq arg (or arg 1))
   (save-match-data
@@ -498,25 +498,25 @@
         (forward-char -1)
         (point)))))
 
-(defun tf/backward-element (&optional arg)
+(defun pe/backward-element (&optional arg)
   (interactive "p")
   (setq arg (or arg 1))
-  (tf/forward-element (- arg)))
+  (pe/forward-element (- arg)))
 
-(defun tf/middle-click (event)
+(defun pe/middle-click (event)
   (interactive "e")
   (mouse-set-point event)
-  (tf/return))
+  (pe/return))
 
-(defun tf/return ()
+(defun pe/return ()
   (interactive)
-  (if (file-directory-p (tf/get-filename))
-      (tf/tab)
-    (tf/find-file)))
+  (if (file-directory-p (pe/get-filename))
+      (pe/tab)
+    (pe/find-file)))
 
-(defun tf/set-directory (dir)
+(defun pe/set-directory (dir)
   (interactive
-   (let ((file-name (tf/get-filename)))
+   (let ((file-name (pe/get-filename)))
      (list (read-file-name
             "Set directory to: "
             (if (file-directory-p file-name)
@@ -529,86 +529,88 @@
            dir))
   (setq dir (file-name-as-directory dir))
   (unless (string-equal default-directory dir)
-    (setq tf/folds-open))
+    (setq pe/folds-open))
   (setq default-directory dir)
   (revert-buffer)
   )
 
-(defun tf/find-file (&optional focus)
+(defun pe/find-file (&optional focus)
+  "Open the file or directory at point."
   (interactive)
-  (let ((file-name (tf/get-filename))
+  (let ((file-name (pe/get-filename))
         (win (cadr (window-list))))
     (select-window win)
     (find-file file-name)))
 
-(defun tf/tab (&optional arg)
+(defun pe/tab (&optional arg)
   "Toggle folding at point.
 With a prefix argument, unfold all children."
   (interactive "P")
-  (if (or arg (tf/folded-p))
-      (tf/unfold arg)
-    (tf/fold)))
+  (if (or arg (pe/folded-p))
+      (pe/unfold arg)
+    (pe/fold)))
 
-(defun tf/up-element ()
+(defun pe/up-element ()
   "Goto the parent element of the file at point.
 Joined directories will be traversed as one."
   (interactive)
   (goto-char (es-total-line-beginning-position))
-  (tf/up-element-internal))
+  (pe/up-element-internal))
 
-(defun tf/get-filename ()
+(defun pe/get-filename ()
   "Return the aboslute file-name of the file at point."
   (interactive)
   (save-excursion
     (goto-char (es-total-line-beginning))
-    (tf/get-filename-internal)))
+    (pe/get-filename-internal)))
 
-(cl-defun tree-find-open ()
+(cl-defun project-explorer-open ()
+  "Show the `project-explorer-buffer', of the current project."
   (interactive)
-  (let* (( project-root (funcall tf/project-root-function))
-         ( tree-find-buffers (tf/get-tree-find-buffers))
-         ( project-tree-find-existing-buffer
+  (let* (( project-root (funcall pe/project-root-function))
+         ( project-explorer-buffers (pe/get-project-explorer-buffers))
+         ( project-project-explorer-existing-buffer
            (cl-find project-root
-                    tree-find-buffers
-                    :key (lambda (project-tree-find-buffer)
+                    project-explorer-buffers
+                    :key (lambda (project-project-explorer-buffer)
                            (with-current-buffer
-                               project-tree-find-buffer
-                             tf/project-root))
+                               project-project-explorer-buffer
+                             pe/project-root))
                     :test 'string-equal))
-         ( tree-find-window
-           (and project-tree-find-existing-buffer
+         ( project-explorer-window
+           (and project-project-explorer-existing-buffer
                 (get-window-with-predicate
-                 (lambda (tree-find-window)
-                   (eq (window-buffer tree-find-window)
-                       project-tree-find-existing-buffer))
+                 (lambda (project-explorer-window)
+                   (eq (window-buffer project-explorer-window)
+                       project-project-explorer-existing-buffer))
                  (window-list))))
-         ( project-tree-find-buffer
-           (or project-tree-find-existing-buffer
+         ( project-project-explorer-buffer
+           (or project-project-explorer-existing-buffer
                (with-current-buffer
-                   (generate-new-buffer "*tree-find*")
-                 (tree-find-mode)
+                   (generate-new-buffer "*project-explorer*")
+                 (project-explorer-mode)
                  (setq default-directory
-                       (setq tf/project-root
+                       (setq pe/project-root
                              project-root))
                  (revert-buffer)
                  (current-buffer)
                  ))))
 
-    (when tree-find-window
-      (select-window tree-find-window)
-      (cl-return-from tree-find-open))
+    (when project-explorer-window
+      (select-window project-explorer-window)
+      (cl-return-from project-explorer-open))
 
     (cl-dolist (window (window-list))
-      (and (memq (window-buffer window) tree-find-buffers)
+      (and (memq (window-buffer window) project-explorer-buffers)
            (> (length (window-list)) 1)
            (delete-window window)))
-    (setq tree-find-window (split-window (frame-root-window)
-                                         (- (frame-width) tf/width) tf/side))
-    (set-window-parameter tree-find-window 'window-side tf/side)
-    (set-window-buffer tree-find-window project-tree-find-buffer)
-    (set-window-dedicated-p tree-find-window t)
-    (select-window tree-find-window)
+    (setq project-explorer-window (split-window (frame-root-window)
+                                         (- (frame-width) pe/width) pe/side))
+    (set-window-parameter project-explorer-window 'window-side pe/side)
+    (set-window-buffer project-explorer-window project-project-explorer-buffer)
+    (set-window-dedicated-p project-explorer-window t)
+    (select-window project-explorer-window)
     ))
 
-(provide 'tree-find)
-;;; tree-find.el ends here
+(provide 'project-explorer)
+;;; project-explorer.el ends here

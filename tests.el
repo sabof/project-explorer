@@ -1,4 +1,4 @@
-(ert-deftest tf/compress-tree ()
+(ert-deftest pe/compress-tree ()
   (let (( tree1 '("path0"
                   ("path1"
                    ;; Reverse ATM
@@ -97,15 +97,15 @@
                     ("tags"))
                    "COMMIT_EDITMSG" "FETCH_HEAD" "HEAD" "ORIG_HEAD" "config" "description" "index")
                   "README.md" "tests.el" "tree-find.el")))
-    (should (tree-equal (tf/compress-tree tree1)
+    (should (tree-equal (pe/compress-tree tree1)
                         '("path0/path1"
                           ;; Reverse ATM
                           "somefile2.js"
                           "somefile.js")
                         :test 'string-equal))
-    (should (consp (ignore-errors (tf/compress-tree tree2))))))
+    (should (consp (ignore-errors (pe/compress-tree tree2))))))
 
-(ert-deftest tf/sort ()
+(ert-deftest pe/sort ()
   (let* (( alist
            '("root"
              "file"
@@ -116,7 +116,7 @@
                "subnode3"
                "subnode2"))
              ))
-         ( result (tf/sort (copy-tree alist))))
+         ( result (pe/sort (copy-tree alist))))
     (should (tree-equal result
                         '("root"
                           ("node1")
@@ -129,7 +129,7 @@
                         :test 'equal))
     ))
 
-(ert-deftest tf/print-indented-tree ()
+(ert-deftest pe/print-indented-tree ()
   (let* (( tree '("root"
                   ("node2")
                   ("node1")
@@ -147,12 +147,12 @@ node3/
 ")
          ( result
            (with-temp-buffer
-             (tf/print-indented-tree tree)
+             (pe/print-indented-tree tree)
              (buffer-string))))
     (should (string-equal expected-result
                           result))))
 
-(ert-deftest tf/forward-element ()
+(ert-deftest pe/forward-element ()
   (with-temp-buffer
     (insert "	index1
 	index2
@@ -161,50 +161,50 @@ tests.el
 ")
 
     (goto-char (point-min))
-    (tf/forward-element)
+    (pe/forward-element)
     (should (= 2 (line-number-at-pos)))
     (let ((ori-point (point)))
       (back-to-indentation)
       (should (= (point) ori-point)))
 
     (goto-char (1- (point-max)))
-    (tf/forward-element -1)
+    (pe/forward-element -1)
     (should (= 3 (line-number-at-pos)))
     (let ((ori-point (point)))
       (back-to-indentation)
       (should (= (point) ori-point)))))
 
-(ert-deftest tf/flatten-tree1 ()
+(ert-deftest pe/flatten-tree1 ()
   (let* ((input (list "def"
                       "ab"
                       "cd"))
-         (output (tf/flatten-tree input))
+         (output (pe/flatten-tree input))
          (expected-output (list "def/ab"
                                 "def/cd")))
     (should (tree-equal output expected-output
                         :test 'string-equal))))
 
-(ert-deftest tf/flatten-tree2 ()
+(ert-deftest pe/flatten-tree2 ()
   (let* ((input (list "def"
                       "ab"
                       "cd"))
-         (output (tf/flatten-tree input "abc"))
+         (output (pe/flatten-tree input "abc"))
          (expected-output (list "abc/def/ab"
                                 "abc/def/cd")))
     (should (tree-equal output expected-output
                         :test 'string-equal))))
 
-(ert-deftest tf/flatten-tree3 ()
+(ert-deftest pe/flatten-tree3 ()
   (let* ((input (list "def"
                       "ab"
                       "cd"))
-         (output (tf/flatten-tree input "abc"))
+         (output (pe/flatten-tree input "abc"))
          (expected-output (list "abc/def/ab"
                                 "abc/def/cd")))
     (should (tree-equal output expected-output
                         :test 'string-equal))))
 
-(ert-deftest tf/goto-file ()
+(ert-deftest pe/goto-file ()
   (let ((text "node2/
 node1/
 node3/
@@ -215,19 +215,19 @@ node3/
         )
     (with-temp-buffer
       (insert text)
-      (tf/goto-file "node1")
+      (pe/goto-file "node1")
       (should (= (point) 8))
-      (tf/goto-file "node3/subnode1")
+      (pe/goto-file "node3/subnode1")
       (should (= (point) 23))
-      (tf/goto-file "node3/subnode1/subnode3")
+      (pe/goto-file "node3/subnode1/subnode3")
       (should (= (point) 35))
-      (tf/goto-file "node3/subnode1/subnode3/")
+      (pe/goto-file "node3/subnode1/subnode3/")
       (should (= (point) 35))
-      (tf/goto-file "node3/subnode1/subnode2/")
+      (pe/goto-file "node3/subnode1/subnode2/")
       (should (= (point) 47))
       )))
 
-(ert-deftest tf/goto-file2 ()
+(ert-deftest pe/goto-file2 ()
   (let ((text "node2/
 node1/
 node3/
@@ -250,24 +250,24 @@ node6/node6/
       (insert text)
       (goto-char 1)
 
-      (should-not (tf/goto-file "node3/node6/"))
+      (should-not (pe/goto-file "node3/node6/"))
       (should (= (point) 1))
 
-      (should (tf/goto-file "node5/node6/node7/"))
+      (should (pe/goto-file "node5/node6/node7/"))
       (should (= (point) 95))
 
-      (should (tf/goto-file "node5/node6/node7/node8/"))
+      (should (pe/goto-file "node5/node6/node7/node8/"))
       (should (= (point) 104))
 
-      (should (tf/goto-file "node5/"))
+      (should (pe/goto-file "node5/"))
       (should (= (point) 81))
 
-      (should (tf/goto-file "node5/node6/"))
+      (should (pe/goto-file "node5/node6/"))
       (should (= (point) 87))
       )))
 
-(defun tf/integration-test ()
-  (let (( tf/get-directory-files-method
+(defun pe/integration-test ()
+  (let (( pe/get-directory-files-method
           (lambda (dir func)
             (funcall func '("root"
                             ("node2")
