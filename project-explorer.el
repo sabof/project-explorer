@@ -1,4 +1,4 @@
-;;; project-explorer.el --- Find-based project explorer -*- lexical-binding: t -*-
+;;; project-explorer.el --- A general-purpose sidebar project explorer -*- lexical-binding: t -*-
 ;;; Version: 0.1
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
@@ -39,7 +39,7 @@
 (defvar pe/width 40)
 (defvar pe/omit t)
 (defvar pe/omit-regex
-  "^\\.\\|^#")
+  "^\\.\\|^#\\|~$")
 
 (defvar-local pe/data nil)
 (defvar-local pe/folds-open nil)
@@ -75,7 +75,11 @@
 (cl-defun pe/revert-buffer (&rest ignore)
   (let (( inhibit-read-only t)
         ( project-explorer-buffer (current-buffer))
-        ( starting-name (pe/get-filename))
+        ( starting-name (let ((\default-directory
+                               (or pe/previous-directory
+                                   default-directory)))
+                          (pe/get-filename)))
+        ( window-start (window-start))
         ( starting-column (current-column)))
     (erase-buffer)
     (delete-all-overlays)
@@ -98,6 +102,7 @@
                            default-directory))
         (pe/folds-reset)
       (pe/folds-restore)
+      (set-window-start nil window-start)
       (when starting-name
         (pe/goto-file starting-name nil t)
         (move-to-column starting-column)))
@@ -164,14 +169,14 @@
 ;;; FOLDS ->
 
 (defun pe/folds-add (file-name)
-  (cl-assert (file-exists-p file-name))
+  (cl-assert (file-exists-p file-name) t)
   (prog1 (setq pe/folds-open
                (cons file-name
                      (cl-remove-if
                       (lambda (listed-file-name)
                         (string-prefix-p listed-file-name file-name))
                       pe/folds-open)))
-    (cl-assert (cl-every 'file-exists-p pe/folds-open))
+    (cl-assert (cl-every 'file-exists-p pe/folds-open) t)
     ))
 
 (defun pe/folds-remove (file-name)
@@ -226,18 +231,16 @@
 (cl-defun pe/unfold-internal ()
   (pe/folds-add (pe/get-filename-internal))
   (save-excursion
-    (let* (( initial-indentation
-             (es-current-character-indentation)))
-      (while (let* (( line-end (line-end-position))
-                    ( ov (car (cl-remove-if-not
-                               (lambda (ov)
-                                 (= line-end (overlay-start ov)))
-                               (overlays-at line-end)))))
-               (when ov
-                 (delete-overlay ov)
-                 t))
-        (pe/up-element-internal))
-      )))
+    (while (let* (( line-end (line-end-position))
+                  ( ov (car (cl-remove-if-not
+                             (lambda (ov)
+                               (= line-end (overlay-start ov)))
+                             (overlays-at line-end)))))
+             (when ov
+               (delete-overlay ov)
+               t))
+      (pe/up-element-internal))
+    ))
 
 (defun pe/unfold-expanded-internal ()
   (save-excursion
@@ -395,7 +398,9 @@
       (setq result (expand-file-name result))
       (when (file-directory-p result)
         (setq result (file-name-as-directory result)))
-      (cl-assert (file-exists-p result))
+      (cl-assert (file-exists-p result) nil
+                 "No such file %s\n\twith default-directory %s"
+                 result default-directory)
       result)))
 
 (defun pe/get-current-project-explorer-buffer ()
@@ -528,13 +533,11 @@
     (error "\"%s\" is not a directory"
            dir))
   (setq dir (file-name-as-directory dir))
-  (unless (string-equal default-directory dir)
-    (setq pe/folds-open))
   (setq default-directory dir)
   (revert-buffer)
   )
 
-(defun pe/find-file (&optional focus)
+(defun pe/find-file ()
   "Open the file or directory at point."
   (interactive)
   (let ((file-name (pe/get-filename))
