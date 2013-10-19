@@ -624,8 +624,12 @@ Joined directories will be traversed as one."
   "Show the `project-explorer-buffer', of the current project."
   (interactive)
   (let* (( origin-file-name
-           (expand-file-name
-            (buffer-file-name)))
+           (if (derived-mode-p 'dired-mode)
+               (expand-file-name
+                (dired-current-directory))
+             (and (buffer-file-name)
+                  (expand-file-name
+                   (buffer-file-name)))))
          ( project-root (funcall pe/project-root-function))
          ( project-explorer-buffers (pe/get-project-explorer-buffers))
          ( project-project-explorer-existing-buffer
