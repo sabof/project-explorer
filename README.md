@@ -16,16 +16,17 @@ A tree project explorer.
 
 ##Main key-bindings:
 
-    "d" Change directory
-    "j" Next line
-    "k" Previous line
-    "g" refresh
-    "q" hide sidebar
-    "u" go to parent directory
-    "[" previous sibling
-    "]" next sibling
-    "s" isearch-forward
-    "r" isearch-backward
-    "TAB" toggle-folding
-    "RET" toggle folding of visit file
-    "f" visit file or directory
+    "d"        Change directory
+    "j"        Next line
+    "k"        Previous line
+    "g"        refresh
+    "q"        hide sidebar
+    "u"        go to parent directory
+    "["        previous sibling
+    "]"        next sibling
+    "s"        isearch-forward
+    "r"        isearch-backward
+    "TAB"      toggle-folding
+    "C-U TAB"  unfold ancestors
+    "RET"      toggle folding of visit file
+    "f"        visit file or directory

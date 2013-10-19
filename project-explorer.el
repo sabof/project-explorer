@@ -71,7 +71,8 @@
     (if (fboundp 'projectile-project-root)
         (projectile-project-root)
       (expand-file-name
-       (locate-dominating-file default-directory ".git")))))
+       (or (locate-dominating-file default-directory ".git")
+           default-directory)))))
 
 (cl-defun pe/get-directory-tree-simple (dir done-func)
   (let (walker)
