@@ -9,6 +9,10 @@ A tree project explorer.
     * I-search support
     * Single key navigation keybindings
 
+##Main commands
+
+    project-explorer-open -- open the sidebar
+
 ##Main key-bindings:
 
     "d" Change directory
