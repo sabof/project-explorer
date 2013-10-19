@@ -325,7 +325,8 @@
                           (cl-decf iter))
                         ( (re-search-forward
                            (format "^\t\\{%s\\}\\(?1:%s/?\\)"
-                                   (int-to-string iter) segment)
+                                   (int-to-string iter)
+                                   (regexp-quote segment))
                            limit t)
                           ;; (goto-char (match-beginning 1))
                           (setq limit (save-excursion
