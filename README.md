@@ -7,6 +7,7 @@ A tree project explorer.
     * Folding
     * Grouing of folders containing a single folder
     * I-search support
+    * Occur support
     * Single key navigation keybindings
 
 ##Main commands:

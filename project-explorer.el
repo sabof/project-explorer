@@ -459,6 +459,11 @@
       (when file-name
         (pe/folds-add file-name)))))
 
+(defun pe/occur-mode-find-occurrence-hook ()
+  (save-excursion
+    (pe/up-element-internal)
+    (pe/unfold-internal)))
+
 (define-derived-mode project-explorer-mode special-mode
   "Tree find"
   "Display results of find as a folding tree"
@@ -489,6 +494,9 @@
     )
   (add-hook 'isearch-mode-end-hook
             'pe/register-isearch-unfolding
+            nil t)
+  (add-hook 'occur-mode-find-occurrence-hook
+            'pe/occur-mode-find-occurrence-hook
             nil t)
   (font-lock-add-keywords
    'project-explorer-mode '(("^.+/$" (0 'dired-directory append)))))
