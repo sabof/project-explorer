@@ -2,7 +2,7 @@
 ;;; Version: 0.1
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
-;;; Package-Requires: ((cl-lib "1.0") (es-lib "0.3"))
+;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3"))
 
 ;;; Commentary:
 
