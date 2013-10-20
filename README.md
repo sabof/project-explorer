@@ -5,7 +5,7 @@ A tree project explorer.
 ##Features:
 
     * Folding
-    * Grouing of folders containing a single folder
+    * Grouping of folders containing a single folder
     * I-search support
     * Occur support
     * Single key navigation keybindings
@@ -27,6 +27,6 @@ A tree project explorer.
     "s"        isearch-forward
     "r"        isearch-backward
     "TAB"      toggle-folding
-    "C-U TAB"  unfold ancestors
+    "C-U TAB"  unfold all children
     "RET"      toggle folding of visit file
     "f"        visit file or directory
