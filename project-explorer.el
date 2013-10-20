@@ -205,23 +205,17 @@
     ))
 
 (defun pe/folds-remove (file-name)
-  (let* (( parent
-           (file-name-directory
-            (directory-file-name
-             file-name)))
-         ( new-folds
-           (cl-remove-if
-            (lambda (listed-file-name)
-              (string-prefix-p file-name listed-file-name))
-            pe/folds-open))
-         ( removed-folds
-           (cl-sort (cl-set-difference
-                     pe/folds-open
-                     new-folds
-                     :test 'string-equal)
-                    '>
-                    :key (lambda (it) (length (split-string it "/" t)))
-                    )))
+  (let* (( parent (file-name-directory
+                   (directory-file-name
+                    file-name)))
+         ( new-folds (cl-remove-if
+                      (lambda (listed-file-name)
+                        (string-prefix-p file-name listed-file-name))
+                      pe/folds-open))
+         ( removed-folds (cl-set-difference
+                          pe/folds-open
+                          new-folds
+                          :test 'string-equal)))
     (setq pe/folds-open new-folds)
     (when (and parent
                (not (string-equal parent default-directory))
