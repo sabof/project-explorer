@@ -32,7 +32,6 @@
 
 (require 'cl-lib)
 (require 'es-lib)
-(require 'hideshow)
 (require 'dired)
 
 (defgroup project-explorer nil
@@ -279,15 +278,18 @@ explorer is revealed."
     (goto-char (overlay-start ov))
     (pe/show-file-internal)))
 
+(defun pe/isearch-show-temporarily (ov do-hide)
+  (overlay-put ov 'display (when do-hide "..."))
+  (overlay-put ov 'invisible do-hide))
+
 (defun pe/make-hiding-overlay (from to)
   (let ((ov (make-overlay from to)))
     (overlay-put ov 'isearch-open-invisible-temporary
-                 'hs-isearch-show-temporary)
+                 'pe/isearch-show-temporarily)
     (overlay-put ov 'isearch-open-invisible
                  'pe/isearch-show)
-    (overlay-put ov 'invisible 'hs)
+    (overlay-put ov 'invisible t)
     (overlay-put ov 'display "...")
-    (overlay-put ov 'hs 'code)
     (overlay-put ov 'is-tf-hider t)
     (overlay-put ov 'evaporate t)
     )
