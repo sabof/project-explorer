@@ -54,8 +54,7 @@
   :type 'integer)
 
 (defcustom pe/goto-current-file-on-open t
-  "When true, focus on the current file each time project
-explorer is revealed."
+  "When true, focus on the current file each time project explorer is revealed."
   :group 'project-explorer
   :type 'boolean)
 
