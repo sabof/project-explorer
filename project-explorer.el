@@ -582,8 +582,8 @@ explorer is revealed."
                (directory-file-name
                 file-name)))))))
   (unless (file-directory-p dir)
-    (error "\"%s\" is not a directory"
-           dir))
+    (user-error "\"%s\" is not a directory"
+                dir))
   (setq dir (file-name-as-directory dir))
   (setq default-directory (expand-file-name dir))
   (revert-buffer)
