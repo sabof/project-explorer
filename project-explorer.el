@@ -274,12 +274,17 @@ explorer is revealed."
       (while (re-search-forward "/$" end t)
         (pe/unfold-internal)))))
 
+(defun pe/isearch-show (ov)
+  (save-excursion
+    (goto-char (overlay-start ov))
+    (pe/show-file-internal)))
+
 (defun pe/make-hiding-overlay (from to)
   (let ((ov (make-overlay from to)))
     (overlay-put ov 'isearch-open-invisible-temporary
                  'hs-isearch-show-temporary)
     (overlay-put ov 'isearch-open-invisible
-                 'hs-isearch-show)
+                 'pe/isearch-show)
     (overlay-put ov 'invisible 'hs)
     (overlay-put ov 'display "...")
     (overlay-put ov 'hs 'code)
@@ -442,14 +447,6 @@ explorer is revealed."
 ;;         (completing-read ))
 ;;     ))
 
-(defun pe/register-isearch-unfolding ()
-  (unless isearch-mode-end-hook-quit
-    (let ((file-name (pe/get-filename)))
-      (unless (string-match-p "/$" file-name)
-        (setq file-name (file-name-directory file-name)))
-      (when file-name
-        (pe/folds-add file-name)))))
-
 (defun pe/occur-mode-find-occurrence-hook ()
   (save-excursion
     (pe/up-element-internal)
@@ -483,20 +480,18 @@ explorer is revealed."
     (kbd "r") 'isearch-backward
     (kbd "f") 'pe/find-file
     )
-  (add-hook 'isearch-mode-end-hook
-            'pe/register-isearch-unfolding
-            nil t)
   (add-hook 'occur-mode-find-occurrence-hook
             'pe/occur-mode-find-occurrence-hook
             nil t)
   (font-lock-add-keywords
    'project-explorer-mode '(("^.+/$" (0 'dired-directory append)))))
 
-(defun pe/show-file-internal (file-name)
-  (when (pe/goto-file file-name)
-    (save-excursion
-      (pe/up-element-internal)
-      (pe/unfold-internal))))
+(defun pe/show-file-internal (&optional file-name)
+  (and file-name
+       (pe/goto-file file-name)
+       (save-excursion
+         (pe/up-element-internal)
+         (pe/unfold-internal))))
 
 ;;; Interface
 
