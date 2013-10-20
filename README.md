@@ -27,6 +27,6 @@ A tree project explorer.
     "s"        isearch-forward
     "r"        isearch-backward
     "TAB"      toggle-folding
-    "C-U TAB"  unfold all children
+    "C-U TAB"  unfold descendants
     "RET"      toggle folding of visit file
     "f"        visit file or directory
