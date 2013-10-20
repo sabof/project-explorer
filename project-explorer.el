@@ -315,34 +315,36 @@ explorer is revealed."
                      "/" t))
          ( init-pos (point))
          best-match
+         next-round-start
          found)
     (goto-char (point-min))
     (save-match-data
       (cl-loop with limit
                for segment in segments
-               for iter = 0 then (1+ iter)
-               ;; for is-final = (= iter (1- (length segments)))
-               do (cond ( (and (cl-plusp iter)
-                               (save-excursion
-                                 (goto-char (match-end 1))
-                                 (looking-at-p (concat (regexp-quote segment) "/$"))))
-                          (goto-char (match-end 1))
-                          (setq best-match (match-end 1))
-                          (cl-decf iter))
-                        ( (re-search-forward
-                           (format "^\t\\{%s\\}\\(?1:%s/?\\)"
-                                   (int-to-string iter)
-                                   (regexp-quote segment))
-                           limit t)
-                          ;; (goto-char (match-beginning 1))
-                          (setq limit (save-excursion
-                                        (pe/forward-element)))
-                          (setq best-match (match-beginning 1))
-                          (when on-each-semgent-function
-                            (save-excursion
-                              (goto-char (match-beginning 1))
-                              (funcall on-each-semgent-function))))
-                        ( t (cl-return)))
+               for indent = 0 then (1+ indent)
+               ;; for is-final = (= indent (1- (length segments)))
+               do
+               (when next-round-start
+                 (goto-char next-round-start))
+               (cond ( (and (cl-plusp indent)
+                            (looking-at (concat (regexp-quote segment) "/")))
+                       (setq next-round-start (match-end 0))
+                       (setq best-match (point))
+                       (cl-decf indent))
+                     ( (re-search-forward
+                        (format "^\t\\{%s\\}\\(?1:%s/?\\)"
+                                (int-to-string indent)
+                                (regexp-quote segment))
+                        limit t)
+                       (setq next-round-start (match-end 1))
+                       (setq limit (save-excursion
+                                     (pe/forward-element)))
+                       (setq best-match (match-beginning 1))
+                       (when on-each-semgent-function
+                         (save-excursion
+                           (goto-char (match-beginning 1))
+                           (funcall on-each-semgent-function))))
+                     ( t (cl-return)))
                finally (setq found t)))
 
     (if (and best-match (or found use-best-match))

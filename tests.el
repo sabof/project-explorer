@@ -244,6 +244,8 @@ node5/node6/
 node6/node6/
 	node7/
 		node8/
+data/43/d0ce42-4d9a-4fb8-b6da-073363c8c4f2/
+	tumblr_mdefifNYFD1qzfvn2o2_250.jpg
 ")
         )
     (with-temp-buffer
@@ -264,6 +266,11 @@ node6/node6/
 
       (should (pe/goto-file "node5/node6/"))
       (should (= (point) 87))
+
+      (should (equal (pe/goto-file
+                      (concat "data/43/d0ce42-4d9a-4fb8-b6da-073363c8c4f2/"
+                              "tumblr_mdefifNYFD1qzfvn2o2_250.jpg"))
+                     186))
       )))
 
 (defun pe/integration-test ()
