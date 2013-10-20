@@ -228,7 +228,8 @@ node3/
       )))
 
 (ert-deftest pe/goto-file2 ()
-  (let ((text "node2/
+  (with-temp-buffer
+    (insert "node2/
 node1/
 node3/
 	node1/
@@ -247,31 +248,30 @@ node6/node6/
 data/43/d0ce42-4d9a-4fb8-b6da-073363c8c4f2/
 	tumblr_mdefifNYFD1qzfvn2o2_250.jpg
 ")
-        )
-    (with-temp-buffer
-      (insert text)
-      (goto-char 1)
+    (goto-char 1)
 
-      (should-not (pe/goto-file "node3/node6/"))
-      (should (= (point) 1))
+    (should-not (pe/goto-file "node3/node6/"))
+    (should (= (point) 1))
 
-      (should (pe/goto-file "node5/node6/node7/"))
-      (should (= (point) 95))
+    (should (pe/goto-file "node5/node6/node7/"))
+    (should (= (point) 95))
 
-      (should (pe/goto-file "node5/node6/node7/node8/"))
-      (should (= (point) 104))
+    (should (pe/goto-file "node5/node6/node7/node8/"))
+    (should (= (point) 104))
 
-      (should (pe/goto-file "node5/"))
-      (should (= (point) 81))
+    (should (pe/goto-file "node5/"))
+    (should (= (point) 81))
 
-      (should (pe/goto-file "node5/node6/"))
-      (should (= (point) 87))
+    (should (pe/goto-file "node5/node6/"))
+    (should (= (point) 87))
 
-      (should (equal (pe/goto-file
-                      (concat "data/43/d0ce42-4d9a-4fb8-b6da-073363c8c4f2/"
-                              "tumblr_mdefifNYFD1qzfvn2o2_250.jpg"))
-                     186))
-      )))
+    (should (equal (pe/goto-file
+                    (concat "data/43/d0ce42-4d9a-4fb8-b6da-073363c8c4f2/"
+                            "tumblr_mdefifNYFD1qzfvn2o2_250.jpg"))
+                   186))
+    (should (equal (pe/goto-file "node4/node6/node5" nil t)
+                   56))
+    ))
 
 (defun pe/integration-test ()
   (let (( pe/get-directory-files-method
