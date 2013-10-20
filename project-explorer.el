@@ -132,8 +132,8 @@ explorer is revealed."
       (pe/folds-restore)
       (set-window-start nil window-start)
       (when starting-name
-        (pe/goto-file starting-name nil t)
-        (move-to-column starting-column)))
+        (when (pe/goto-file starting-name nil t)
+          (move-to-column starting-column))))
     (setq pe/previous-directory default-directory)
     (when (eq this-command 'revert-buffer)
       (message "Refresh complete"))
@@ -337,9 +337,9 @@ explorer is revealed."
                            (funcall on-each-semgent-function))))
                      ( t (cl-return)))
                finally (setq found t)))
-
-    (if (and best-match (or found use-best-match))
-        (goto-char best-match)
+    (if (or found (and best-match use-best-match))
+        (progn (goto-char best-match)
+               (when found (point)))
       (goto-char init-pos)
       nil)))
 

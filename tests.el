@@ -271,7 +271,8 @@ node7/
     (should (equal 186 (pe/goto-file
                         (concat "data/43/d0ce42-4d9a-4fb8-b6da-073363c8c4f2/"
                                 "tumblr_mdefifNYFD1qzfvn2o2_250.jpg"))))
-    (should (equal 56 (pe/goto-file "node4/node6/node5" nil t)))
+    (should-not (pe/goto-file "node4/node6/node5" nil t))
+    (should (equal (point) 56))
     (should-not (pe/goto-file "node7/node6"))
     ))
 
