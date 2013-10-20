@@ -288,10 +288,12 @@ explorer is revealed."
     )
   )
 
-(defun pe/goto-file (file-name &optional on-each-semgent-function use-best-match)
+(cl-defun pe/goto-file (file-name &optional on-each-semgent-function use-best-match)
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
-                         (substring file-name (length default-directory))
+                         (if (string-prefix-p default-directory file-name)
+                             (substring file-name (length default-directory))
+                           (cl-return-from pe/goto-file))
                        file-name)
                      "/" t))
          ( init-pos (point))
