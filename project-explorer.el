@@ -274,25 +274,6 @@ explorer is revealed."
       (while (re-search-forward "/$" end t)
         (pe/unfold-internal)))))
 
-(cl-defun pe/unfold (&optional expanded)
-  (interactive "P")
-  (let (( line-beginning
-          (es-total-line-beginning-position))
-
-        )
-    (when (/= (line-number-at-pos)
-              (line-number-at-pos
-               line-beginning))
-      (goto-char line-beginning)
-      (goto-char (1- (line-end-position)))
-      ))
-  (when expanded
-    (pe/unfold-expanded-internal)
-    (cl-return-from pe/unfold))
-  (unless (pe/folded-p)
-    (cl-return-from pe/unfold))
-  (pe/unfold-internal))
-
 (defun pe/make-hiding-overlay (from to)
   (let ((ov (make-overlay from to)))
     (overlay-put ov 'isearch-open-invisible-temporary
@@ -525,6 +506,25 @@ explorer is revealed."
   (let* (( file-name (pe/get-filename)))
     (pe/fold-until file-name (pe/folds-remove file-name))
     ))
+
+(cl-defun pe/unfold (&optional expanded)
+  (interactive "P")
+  (let (( line-beginning
+          (es-total-line-beginning-position))
+
+        )
+    (when (/= (line-number-at-pos)
+              (line-number-at-pos
+               line-beginning))
+      (goto-char line-beginning)
+      (goto-char (1- (line-end-position)))
+      ))
+  (when expanded
+    (pe/unfold-expanded-internal)
+    (cl-return-from pe/unfold))
+  (unless (pe/folded-p)
+    (cl-return-from pe/unfold))
+  (pe/unfold-internal))
 
 (defun pe/show-file (&optional file-name)
   (interactive)
