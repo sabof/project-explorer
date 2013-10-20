@@ -106,7 +106,7 @@ explorer is revealed."
           (let ((\default-directory
                  (or pe/previous-directory
                      default-directory)))
-            (pe/get-filename)))
+            (pe/get-filename-internal)))
         ( window-start (window-start))
         ( starting-column (current-column)))
     (erase-buffer)
@@ -295,7 +295,8 @@ explorer is revealed."
     )
   )
 
-(cl-defun pe/goto-file (file-name &optional on-each-semgent-function use-best-match)
+(cl-defun pe/goto-file
+    (file-name &optional on-each-semgent-function use-best-match)
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
                          (if (string-prefix-p default-directory file-name)
@@ -322,11 +323,11 @@ explorer is revealed."
                        (setq best-match (point))
                        (cl-decf indent))
                      ( (re-search-forward
-                        (format "^\t\\{%s\\}\\(?1:%s/?\\)"
+                        (format "^\t\\{%s\\}\\(?1:%s\\)[/\n]"
                                 (int-to-string indent)
                                 (regexp-quote segment))
                         limit t)
-                       (setq next-round-start (match-end 1))
+                       (setq next-round-start (match-end 0))
                        (setq limit (save-excursion
                                      (pe/forward-element)))
                        (setq best-match (match-beginning 1))
@@ -416,9 +417,6 @@ explorer is revealed."
       (setq result (expand-file-name result))
       (when (file-directory-p result)
         (setq result (file-name-as-directory result)))
-      (cl-assert (file-exists-p result) nil
-                 "No such file %s\n\twith default-directory %s"
-                 result default-directory)
       result)))
 
 (defun pe/get-current-project-explorer-buffer ()
