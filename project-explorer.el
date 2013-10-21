@@ -206,17 +206,23 @@
     (cl-assert (cl-every 'file-exists-p pe/folds-open) t)))
 
 (defun pe/folds-remove (file-name)
-  (let* (( parent (file-name-directory
-                   (directory-file-name
-                    file-name)))
-         ( new-folds (cl-remove-if
-                      (lambda (listed-file-name)
-                        (string-prefix-p file-name listed-file-name))
-                      pe/folds-open))
-         ( removed-folds (cl-set-difference
-                          pe/folds-open
-                          new-folds
-                          :test 'string-equal)))
+  (let* (( parent
+           (file-name-directory
+            (directory-file-name
+             file-name)))
+         ( new-folds
+           (cl-remove-if
+            (lambda (listed-file-name)
+              (string-prefix-p file-name listed-file-name))
+            pe/folds-open))
+         ( removed-folds
+           (cl-sort (cl-set-difference
+                     pe/folds-open
+                     new-folds
+                     :test 'string-equal)
+                    '>
+                    :key (lambda (it) (length (split-string it "/" t)))
+                    )))
     (setq pe/folds-open new-folds)
     (when (and parent
                (not (string-equal parent default-directory))
@@ -268,6 +274,7 @@
         (pe/unfold-internal)))))
 
 (defun pe/isearch-show (ov)
+  (message "pe/isearch-show ran")
   (save-excursion
     (goto-char (overlay-start ov))
     (pe/show-file-internal)))
@@ -285,7 +292,8 @@
     (overlay-put ov 'invisible t)
     (overlay-put ov 'display "...")
     (overlay-put ov 'is-pe-hider t)
-    (overlay-put ov 'evaporate t)))
+    (overlay-put ov 'evaporate t)
+    ov))
 
 (cl-defun pe/goto-file
     (file-name &optional on-each-semgent-function use-best-match)
