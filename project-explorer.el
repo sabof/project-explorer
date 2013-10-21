@@ -249,10 +249,11 @@
   (pe/folds-add (pe/get-filename-internal))
   (save-excursion
     (while (let* (( line-end (line-end-position))
-                  ( ov (car (cl-remove-if-not
-                             (lambda (ov)
-                               (= line-end (overlay-start ov)))
-                             (overlays-at line-end)))))
+                  ( ov (cl-find-if
+                        (lambda (ov)
+                          (and (overlay-get ov 'is-pe-hider)
+                               (= line-end (overlay-start ov))))
+                        (overlays-at line-end))))
              (when ov
                (delete-overlay ov)
                t))
@@ -283,7 +284,7 @@
                  'pe/isearch-show)
     (overlay-put ov 'invisible t)
     (overlay-put ov 'display "...")
-    (overlay-put ov 'is-tf-hider t)
+    (overlay-put ov 'is-pe-hider t)
     (overlay-put ov 'evaporate t)
     )
   )
@@ -382,7 +383,7 @@
                 (goto-char (line-end-position))
                 (overlays-at (point)))))
     (cl-some (lambda (ov)
-               (overlay-get ov 'is-tf-hider))
+               (overlay-get ov 'is-pe-hider))
              ovs)))
 
 (defun pe/up-element-internal ()
