@@ -115,7 +115,8 @@
              default-directory
              (lambda (result)
                (when result
-                 (with-current-buffer project-explorer-buffer
+                 (with-current-buffer
+                     project-explorer-buffer
                    (setq pe/data result)
                    (let ((inhibit-read-only t))
                      (erase-buffer)
@@ -175,7 +176,8 @@
     branch
     ))
 
-(cl-defun pe/print-indented-tree (branch &optional (depth -1))
+(cl-defun pe/print-indented-tree
+    (branch &optional (depth -1))
   (let (start)
     (cond ( (stringp branch)
             (insert (make-string depth ?\t)
@@ -189,8 +191,8 @@
                 (pe/print-indented-tree item (1+ depth)))
               (when (and start (> (point) start))
                 ;; (message "ran %s %s" start (point))
-                (pe/make-hiding-overlay (1- start) (1- (point)))
-                )
+                (pe/make-hiding-overlay
+                 (1- start) (1- (point))))
               ))))
 
 (defun pe/folds-add (file-name)
@@ -201,8 +203,7 @@
                       (lambda (listed-file-name)
                         (string-prefix-p listed-file-name file-name))
                       pe/folds-open)))
-    (cl-assert (cl-every 'file-exists-p pe/folds-open) t)
-    ))
+    (cl-assert (cl-every 'file-exists-p pe/folds-open) t)))
 
 (defun pe/folds-remove (file-name)
   (let* (( parent (file-name-directory
@@ -257,8 +258,7 @@
              (when ov
                (delete-overlay ov)
                t))
-      (pe/up-element-internal))
-    ))
+      (pe/up-element-internal))))
 
 (defun pe/unfold-expanded-internal ()
   (save-excursion
@@ -285,9 +285,7 @@
     (overlay-put ov 'invisible t)
     (overlay-put ov 'display "...")
     (overlay-put ov 'is-pe-hider t)
-    (overlay-put ov 'evaporate t)
-    )
-  )
+    (overlay-put ov 'evaporate t)))
 
 (cl-defun pe/goto-file
     (file-name &optional on-each-semgent-function use-best-match)
@@ -354,8 +352,7 @@
                    (line-end-position 0)
                  (point-max))))))
     (pe/make-hiding-overlay (line-end-position 1)
-                            end)
-    ))
+                            end)))
 
 (defun pe/fold-until (root ancestor-list)
   (save-excursion
@@ -432,8 +429,7 @@
                          (if (consp it)
                              (pe/flatten-tree it current-prefix)
                            (list (concat current-prefix "/" it))))
-                       (cdr tree))))
-  )
+                       (cdr tree)))))
 
 ;; (defun pe/completing-read-files ()
 ;;   (let ((flat-tree (with-current-buffer pe/get-current-project-explorer-buffer
@@ -495,21 +491,20 @@
             (pe/folded-p))
     (cl-return-from pe/fold))
   (let* (( file-name (pe/get-filename)))
-    (pe/fold-until file-name (pe/folds-remove file-name))
-    ))
+    (pe/fold-until file-name (pe/folds-remove file-name))))
+
+(defun pe/fold-all ()
+  (interactive))
 
 (cl-defun pe/unfold (&optional expanded)
   (interactive "P")
   (let (( line-beginning
-          (es-total-line-beginning-position))
-
-        )
+          (es-total-line-beginning-position)))
     (when (/= (line-number-at-pos)
               (line-number-at-pos
                line-beginning))
       (goto-char line-beginning)
-      (goto-char (1- (line-end-position)))
-      ))
+      (goto-char (1- (line-end-position)))))
   (when expanded
     (pe/unfold-expanded-internal)
     (cl-return-from pe/unfold))
@@ -580,8 +575,7 @@
                 dir))
   (setq dir (file-name-as-directory dir))
   (setq default-directory (expand-file-name dir))
-  (revert-buffer)
-  )
+  (revert-buffer))
 
 (defun pe/find-file ()
   "Open the file or directory at point."
@@ -674,8 +668,7 @@ Joined directories will be traversed as one."
     (set-window-buffer project-explorer-window project-explorer-buffer)
     (set-window-dedicated-p project-explorer-window t)
     (select-window project-explorer-window)
-    (funcall goto-maybe)
-    ))
+    (funcall goto-maybe)))
 
 (provide 'project-explorer)
 ;;; project-explorer.el ends here
