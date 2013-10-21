@@ -274,10 +274,7 @@
         (pe/unfold-internal)))))
 
 (defun pe/isearch-show (ov)
-  (message "pe/isearch-show ran")
-  (save-excursion
-    (goto-char (overlay-start ov))
-    (pe/show-file-internal)))
+  (pe/show-file-internal))
 
 (defun pe/isearch-show-temporarily (ov do-hide)
   (overlay-put ov 'display (when do-hide "..."))
@@ -488,11 +485,11 @@
    'project-explorer-mode '(("^.+/$" (0 'dired-directory append)))))
 
 (defun pe/show-file-internal (&optional file-name)
-  (and file-name
-       (pe/goto-file file-name)
-       (save-excursion
-         (pe/up-element-internal)
-         (pe/unfold-internal))))
+  (when file-name
+    (pe/goto-file file-name))
+  (save-excursion
+    (pe/up-element-internal)
+    (pe/unfold-internal)))
 
 ;;; Interface
 
