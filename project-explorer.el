@@ -329,6 +329,9 @@
                            (funcall on-each-semgent-function))))
                      ( t (cl-return)))
                finally (setq found t)))
+    (cl-assert (or (not found) (and found best-match)) nil
+               "Found, without best-match, with file-name %s"
+               file-name)
     (if (or found (and best-match use-best-match))
         (progn (goto-char best-match)
                (when found (point)))
