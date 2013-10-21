@@ -280,7 +280,15 @@
   (overlay-put ov 'invisible do-hide))
 
 (defun pe/make-hiding-overlay (from to)
-  (let ((ov (make-overlay from to)))
+  (let* (( ov (make-overlay from to))
+         line-beginning
+         ( indent (save-excursion
+                    (goto-char from)
+                    (setq line-beginning
+                          (goto-char (line-beginning-position)))
+                    (skip-chars-forward "\t")
+                    (- (point) line-beginning)))
+         ( priority (- 100 indent)))
     (overlay-put ov 'isearch-open-invisible-temporary
                  'pe/isearch-show-temporarily)
     (overlay-put ov 'isearch-open-invisible
@@ -289,6 +297,7 @@
     (overlay-put ov 'display "...")
     (overlay-put ov 'is-pe-hider t)
     (overlay-put ov 'evaporate t)
+    (overlay-put ov 'priority priority)
     ov))
 
 (cl-defun pe/goto-file
@@ -309,7 +318,6 @@
       (cl-loop with limit
                for segment in segments
                for indent = 0 then (1+ indent)
-               ;; for is-final = (= indent (1- (length segments)))
                do
                (when next-round-start
                  (goto-char next-round-start))
