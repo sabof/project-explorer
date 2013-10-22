@@ -72,11 +72,11 @@
 
 (defvar pe/project-root-function
   (lambda ()
-    (if (fboundp 'projectile-project-root)
-        (projectile-project-root)
-      (expand-file-name
-       (or (locate-dominating-file default-directory ".git")
-           default-directory)))))
+    (expand-file-name
+     (or (and (fboundp 'projectile-project-root)
+              (projectile-project-root))
+         (locate-dominating-file default-directory ".git")
+         default-directory))))
 
 (cl-defun pe/get-directory-tree-simple (dir done-func)
   (let (walker)
@@ -271,7 +271,10 @@
         (pe/unfold-internal)))))
 
 (defun pe/isearch-show (ov)
-  (pe/show-file-internal))
+  (save-excursion
+    (goto-char (overlay-start ov))
+    (pe/folds-add (pe/get-filename-internal))
+    (delete-overlay ov)))
 
 (defun pe/isearch-show-temporarily (ov do-hide)
   (overlay-put ov 'display (when do-hide "..."))
@@ -300,6 +303,8 @@
 
 (cl-defun pe/goto-file
     (file-name &optional on-each-semgent-function use-best-match)
+  (when (string-equal (expand-file-name file-name) default-directory)
+    (cl-return-from pe/goto-file nil))
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
                          (if (string-prefix-p default-directory file-name)
@@ -398,7 +403,7 @@
 
 (defun pe/up-element-internal ()
   (let (( indentation (pe/current-indnetation)))
-    (and (not (zerop indentation))
+    (and (cl-plusp indentation)
          (re-search-backward (format
                               "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
                               (1- indentation))
@@ -498,8 +503,8 @@
   (when file-name
     (pe/goto-file file-name))
   (save-excursion
-    (pe/up-element-internal)
-    (pe/unfold-internal)))
+    (when (pe/up-element-internal)
+      (pe/unfold-internal))))
 
 ;;; Interface
 
@@ -530,14 +535,17 @@
     (cl-return-from pe/unfold))
   (pe/unfold-internal))
 
-(defun pe/show-file (&optional file-name)
+(defun pe/show-file ()
   (interactive)
-  (setq file-name
-        (expand-file-name
-         (or file-name
-             (buffer-file-name))))
-  (project-explorer-open)
-  (pe/show-file-internal file-name))
+  (let (( file-name
+          (expand-file-name
+           (or (buffer-file-name)
+               (when (derived-mode-p 'dired-mode)
+                 (dired-current-directory))
+               (user-error "The buffer is not associated with a file")))))
+    (save-selected-window
+      (project-explorer-open)
+      (pe/show-file-internal file-name))))
 
 (defun pe/quit ()
   (interactive)
@@ -632,9 +640,9 @@ Joined directories will be traversed as one."
            (if (derived-mode-p 'dired-mode)
                (expand-file-name
                 (dired-current-directory))
-             (and (buffer-file-name)
-                  (expand-file-name
-                   (buffer-file-name)))))
+             (when (buffer-file-name)
+               (expand-file-name
+                (buffer-file-name)))))
          ( project-root (funcall pe/project-root-function))
          ( project-explorer-buffers (pe/get-project-explorer-buffers))
          ( project-project-explorer-existing-buffer
@@ -686,7 +694,8 @@ Joined directories will be traversed as one."
     (set-window-buffer project-explorer-window project-explorer-buffer)
     (set-window-dedicated-p project-explorer-window t)
     (select-window project-explorer-window)
-    (funcall goto-maybe)))
+    (funcall goto-maybe)
+    project-explorer-buffer))
 
 (provide 'project-explorer)
 ;;; project-explorer.el ends here

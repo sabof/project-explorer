@@ -289,3 +289,20 @@ node7/
                               ("subnode2"))))))))
     (tree-find-open)
     ))
+
+(defun pe/emacs-Q-test ()
+  (interactive)
+  (es-lib-for-emacs-Q
+   '((progn
+       (require 'project-explorer)
+       ;; "/media/projects/vb-shared/.emacs.d/site-lisp/packages/tree-find/tests.el"
+       (find-file "~/.emacs.d/site-lisp/")
+       (global-set-key (kbd "C-x f") 'project-explorer-open)
+       (project-explorer-open)
+       (with-current-buffer
+           (pe/get-current-project-explorer-buffer)
+         (cl-assert (file-name-absolute-p default-directory)))
+       ;; '(save-excursion
+       ;;   (find-function 'project-explorer-open)
+       ;;   (edebug-defun))
+       ))))
