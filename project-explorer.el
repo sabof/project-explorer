@@ -535,17 +535,21 @@
     (cl-return-from pe/unfold))
   (pe/unfold-internal))
 
-(defun pe/show-file ()
+(defun pe/show-file (&optional file-name)
   (interactive)
-  (let (( file-name
-          (expand-file-name
-           (or (buffer-file-name)
-               (when (derived-mode-p 'dired-mode)
-                 (dired-current-directory))
-               (user-error "The buffer is not associated with a file")))))
-    (save-selected-window
-      (project-explorer-open)
-      (pe/show-file-internal file-name))))
+  (let* (( error-message
+           "The buffer is not associated with a file")
+         ( file-name
+           (expand-file-name
+            (or file-name
+                (buffer-file-name)
+                (when (derived-mode-p 'dired-mode)
+                  (dired-current-directory))
+                (if (called-interactively-p 'interactive)
+                    (user-error error-message)
+                  (error error-message))))))
+    (project-explorer-open)
+    (pe/show-file-internal file-name)))
 
 (defun pe/quit ()
   (interactive)
