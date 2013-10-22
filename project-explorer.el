@@ -216,12 +216,10 @@
               (string-prefix-p file-name listed-file-name))
             pe/folds-open))
          ( removed-folds
-           (cl-sort (cl-set-difference pe/folds-open new-folds
-                                       :test 'string-equal)
-                    '>
-                    :key (lambda (it)
-                           (length (split-string it "/" t)))
-                    )))
+           (cl-set-difference
+            pe/folds-open
+            new-folds
+            :test 'string-equal)))
     (setq pe/folds-open new-folds)
     (when (and parent
                (not (string-equal parent default-directory))
