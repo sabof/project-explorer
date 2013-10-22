@@ -455,6 +455,10 @@
     (pe/up-element-internal)
     (pe/unfold-internal)))
 
+(defun pe/copy-file-name-as-kill ()
+  (interactive)
+  (kill-new (pe/get-filename)))
+
 (define-derived-mode project-explorer-mode special-mode
   "Tree find"
   "Display results of find as a folding tree"
@@ -482,6 +486,7 @@
     (kbd "s") 'isearch-forward
     (kbd "r") 'isearch-backward
     (kbd "f") 'pe/find-file
+    (kbd "w") 'pe/copy-file-name-as-kill
     )
   (add-hook 'occur-mode-find-occurrence-hook
             'pe/occur-mode-find-occurrence-hook
