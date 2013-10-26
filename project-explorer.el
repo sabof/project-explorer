@@ -506,6 +506,33 @@
     (when (pe/up-element-internal)
       (pe/unfold-internal))))
 
+(defun pe/show-buffer-in-side-window (buffer)
+  (let* (( project-explorer-buffers
+           (pe/get-project-explorer-buffers))
+         ( existing-window
+           (cl-find-if
+            (lambda (window)
+              (and (memq (window-buffer window) project-explorer-buffers)
+                   (window-parameter window 'window-side)))
+            (window-list)))
+         ( window
+           (or existing-window
+               (display-buffer-in-side-window
+                buffer
+                `((side . ,pe/side)
+                  )))))
+    (when existing-window
+      (set-window-dedicated-p window nil)
+      (set-window-buffer window buffer))
+    (set-window-dedicated-p window t)
+    (unless existing-window
+      (es-set-window-body-width window pe/width))
+    window))
+
+(defun pe/get-target-window-create ()
+  ())
+
+
 ;;; Interface
 
 (cl-defun pe/fold ()
