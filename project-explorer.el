@@ -196,14 +196,12 @@
               ))))
 
 (defun pe/folds-add (file-name)
-  (cl-assert (file-exists-p file-name) t)
-  (prog1 (setq pe/folds-open
-               (cons file-name
-                     (cl-remove-if
-                      (lambda (listed-file-name)
-                        (string-prefix-p listed-file-name file-name))
-                      pe/folds-open)))
-    (cl-assert (cl-every 'file-exists-p pe/folds-open) t)))
+  (setq pe/folds-open
+        (cons file-name
+              (cl-remove-if
+               (lambda (listed-file-name)
+                 (string-prefix-p listed-file-name file-name))
+               pe/folds-open))))
 
 (defun pe/folds-remove (file-name)
   (let* (( parent
