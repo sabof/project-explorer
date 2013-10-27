@@ -562,6 +562,13 @@
     (while (re-search-forward "^.+/$" nil t)
       (pe/fold-internal))))
 
+(defun pe/unfold-all ()
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward "^.+/$" nil t)
+      (pe/unfold-expanded-internal))))
+
 (cl-defun pe/unfold (&optional expanded)
   (interactive "P")
   (let (( line-beginning
