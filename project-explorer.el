@@ -561,7 +561,7 @@
   (save-excursion
     (goto-char (point-min))
     (while (re-search-forward "^.+/$" nil t)
-      (pe/fold-internal))))
+      (pe/fold))))
 
 (defun pe/unfold-all ()
   (interactive)
