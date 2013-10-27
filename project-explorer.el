@@ -525,10 +525,14 @@
     (set-window-dedicated-p window t)
     (unless existing-window
       (es-set-window-body-width window pe/width))
+    (select-window window)
     window))
 
 (defun pe/get-target-window-create ()
-  ())
+  (let ((existing (cl-find-if (lambda (win)
+                                (and (not (window-dedicated-p win)
+                                          (window-deletable-p))))
+                              (window-list))))))
 
 
 ;;; Interface
@@ -682,48 +686,24 @@ Joined directories will be traversed as one."
                                project-explorer-buffer
                              pe/project-root))
                     :test 'string-equal))
-         ( project-explorer-window
-           (and project-project-explorer-existing-buffer
-                (get-window-with-predicate
-                 (lambda (project-explorer-window)
-                   (eq (window-buffer project-explorer-window)
-                       project-project-explorer-existing-buffer))
-                 (window-list))))
          ( project-explorer-buffer
            (or project-project-explorer-existing-buffer
                (with-current-buffer
-                   (generate-new-buffer "*project-explorer*")
+                   (generate-new-buffer " *project-explorer*")
                  (project-explorer-mode)
                  (setq default-directory
                        (setq pe/project-root
                              project-root))
                  (revert-buffer)
                  (current-buffer)
-                 )))
-         ( goto-maybe
-           (lambda ()
-             (when (and origin-file-name
-                        pe/goto-current-file-on-open)
-               (with-current-buffer
-                   project-explorer-buffer
-                 (pe/show-file-internal origin-file-name))))))
-
-    (when project-explorer-window
-      (select-window project-explorer-window)
-      (funcall goto-maybe)
-      (cl-return-from project-explorer-open))
-
-    (cl-dolist (window (window-list))
-      (and (memq (window-buffer window) project-explorer-buffers)
-           (> (length (window-list)) 1)
-           (delete-window window)))
-    (setq project-explorer-window (split-window (frame-root-window)
-                                                (- (frame-width) pe/width) pe/side))
-    (set-window-parameter project-explorer-window 'window-side pe/side)
-    (set-window-buffer project-explorer-window project-explorer-buffer)
-    (set-window-dedicated-p project-explorer-window t)
-    (select-window project-explorer-window)
-    (funcall goto-maybe)
+                 ))))
+    (pe/show-buffer-in-side-window
+     project-explorer-buffer)
+    (when (and origin-file-name
+               pe/goto-current-file-on-open)
+      (with-current-buffer
+          project-explorer-buffer
+        (pe/show-file-internal origin-file-name)))
     project-explorer-buffer))
 
 (provide 'project-explorer)
