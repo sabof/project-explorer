@@ -546,7 +546,11 @@
     (pe/fold-until file-name (pe/folds-remove file-name))))
 
 (defun pe/fold-all ()
-  (interactive))
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward "^.+/$" nil t)
+      (pe/fold-internal))))
 
 (cl-defun pe/unfold (&optional expanded)
   (interactive "P")
