@@ -485,6 +485,7 @@
     ;; (kbd "^") 'pe/up-directory
     (kbd "RET") 'pe/return
     (kbd "<mouse-2>") 'pe/middle-click
+    (kbd "<mouse-1>") 'pe/left-click
     (kbd "q") 'pe/quit
     (kbd "s") 'isearch-forward
     (kbd "r") 'isearch-backward
@@ -633,6 +634,14 @@
   (interactive "e")
   (mouse-set-point event)
   (pe/return))
+
+(defun pe/left-click (event)
+  (interactive "e")
+  (and mouse-1-click-follows-link
+       (save-excursion
+         (mouse-set-point event)
+         (looking-at-p "[^ \t\n]"))
+       (pe/middle-click event)))
 
 (defun pe/return ()
   (interactive)
