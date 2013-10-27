@@ -528,12 +528,22 @@
     (select-window window)
     window))
 
-(defun pe/get-target-window-create ()
-  (let ((existing (cl-find-if (lambda (win)
-                                (and (not (window-dedicated-p win)
-                                          (window-deletable-p))))
-                              (window-list))))))
-
+(defun pe/show-buffer (buffer)
+  (let* (( non-side-windows
+           (cl-remove-if
+            (lambda (win)
+              (window-parameter win 'window-side))
+            (window-list)))
+         ( existing
+           (cl-find-if (lambda (win)
+                         (not (window-dedicated-p win)))
+                       non-side-windows))
+         ( window
+           (or existing
+               (split-window (car non-side-windows)
+                             nil 'left))))
+    (select-window window)
+    (set-window-buffer window buffer)))
 
 ;;; Interface
 
@@ -645,8 +655,8 @@
   (interactive)
   (let ((file-name (pe/get-filename))
         (win (cadr (window-list))))
-    (select-window win)
-    (find-file file-name)))
+    (pe/show-buffer
+     (find-file-noselect file-name))))
 
 (defun pe/tab (&optional arg)
   "Toggle folding at point.
