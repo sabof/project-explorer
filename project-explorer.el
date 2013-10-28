@@ -512,9 +512,7 @@
            (mapc (lambda (win)
                    (and (memq (window-buffer win) project-explorer-buffers)
                         (not (window-parameter win 'window-side))
-                        (<= 2 (length (cl-remove-if
-                                       (lambda (win) (window-parameter win 'window-side))
-                                       (window-list))))
+                        (window-deletable-p win)
                         (delete-window win)))
                  (window-list)))
          ( existing-window
