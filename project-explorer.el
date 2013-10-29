@@ -1,5 +1,5 @@
 ;;; project-explorer.el --- A project explorer sidebar -*- lexical-binding: t -*-
-;;; Version: 0.8
+j;;; Version: 0.8
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3"))
@@ -743,5 +743,16 @@ Joined directories will be traversed as one."
         (pe/show-file-internal origin-file-name)))
     project-explorer-buffer))
 
-(provide 'project-explorer)
+(defadvice occur-mode (after pe/try-matching-tab-width activate)
+  (and (boundp 'buf-name)
+       (boundp 'bufs)
+       (consp bufs)
+       (= 1 (length bufs))
+       (with-current-buffer (car bufs)
+         (derived-mode-p 'project-explorer-mode))
+       (with-current-buffer buf-name
+         (setq-local tab-width (with-current-buffer (car bufs)
+                                 tab-width)))))
+
+  (provide 'project-explorer)
 ;;; project-explorer.el ends here
