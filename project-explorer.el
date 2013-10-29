@@ -509,6 +509,13 @@
 (defun pe/show-buffer-in-side-window (buffer)
   (let* (( project-explorer-buffers
            (pe/get-project-explorer-buffers))
+         ( --clean-up--
+           (mapc (lambda (win)
+                   (and (memq (window-buffer win) project-explorer-buffers)
+                        (not (window-parameter win 'window-side))
+                        (window-deletable-p win)
+                        (delete-window win)))
+                 (window-list)))
          ( existing-window
            (cl-find-if
             (lambda (window)
