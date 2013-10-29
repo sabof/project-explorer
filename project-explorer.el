@@ -470,6 +470,7 @@ j;;; Version: 0.8
   (setq-local tab-width 2)
   (es-define-keys project-explorer-mode-map
     (kbd "u") 'pe/up-element
+    (kbd "a") 'pe/goto-top
     (kbd "d") 'pe/set-directory
     (kbd "TAB") 'pe/tab
     (kbd "M-}") 'pe/forward-element
@@ -554,6 +555,10 @@ j;;; Version: 0.8
     (set-window-buffer window buffer)))
 
 ;;; Interface
+
+(defun pe/goto-top ()
+  (interactive)
+  (re-search-backward "^[^\t]" nil t))
 
 (cl-defun pe/fold ()
   (interactive)
