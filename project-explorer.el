@@ -460,7 +460,10 @@
 
 (defun pe/copy-file-name-as-kill ()
   (interactive)
-  (kill-new (pe/get-filename)))
+  (let ((file-name (pe/get-filename)))
+    (when (called-interactively-p 'any)
+      (message "%s" file-name))
+    (kill-new file-name)))
 
 (define-derived-mode project-explorer-mode special-mode
   "Tree find"
