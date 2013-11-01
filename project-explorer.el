@@ -462,6 +462,16 @@
   (interactive)
   (kill-new (pe/get-filename)))
 
+(defun pe/hl-line-range ()
+  (save-excursion
+    (cons (progn
+            (forward-visible-line 0)
+            (point))
+          (progn
+            (forward-visible-line 1)
+            (point))
+          )))
+
 (define-derived-mode project-explorer-mode special-mode
   "Tree find"
   "Display results of find as a folding tree"
@@ -491,11 +501,13 @@
     (kbd "s") 'isearch-forward
     (kbd "r") 'isearch-backward
     (kbd "f") 'pe/find-file
-    (kbd "w") 'pe/copy-file-name-as-kill
-    )
+    (kbd "w") 'pe/copy-file-name-as-kill)
+
   (add-hook 'occur-mode-find-occurrence-hook
             'pe/occur-mode-find-occurrence-hook
             nil t)
+  (setq-local hl-line-range-function
+              'pe/hl-line-range)
   (font-lock-add-keywords
    'project-explorer-mode '(("^.+/$" (0 'dired-directory append)))))
 
@@ -759,5 +771,5 @@ Joined directories will be traversed as one."
          (setq-local tab-width (with-current-buffer (car bufs)
                                  tab-width)))))
 
-  (provide 'project-explorer)
+(provide 'project-explorer)
 ;;; project-explorer.el ends here
