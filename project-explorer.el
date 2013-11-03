@@ -447,31 +447,28 @@
                            (list (concat current-prefix "/" it))))
                        (cdr tree)))))
 
+;;; Helm
+
+(defvar pe/helm-buffer-max-length 20)
+
 (defun pe/helm-candidates ()
   (cl-remove-if (lambda (it) (string-match-p "/$" it))
                 (pe/flatten-tree (with-current-buffer
                                      (pe/get-current-project-explorer-buffer)
                                    pe/data))))
 
-;; (define-helm-type-attribute 'pe/file
-;;     `((filtered-candidate-transformer
-;;        helm-skip-boring-buffers
-;;        helm-highlight-buffers))
-;;   "File")
-
 (defun pe/helm-transformer (candidates source)
   (mapcar (lambda (file-name)
             (let (( name (file-name-nondirectory file-name)))
               (cons (format "%s\t(in `%s')"
-                            (if (> (string-width name) helm-buffer-max-length)
-                                (helm-substring-by-width name helm-buffer-max-length)
+                            (if (> (string-width name) pe/helm-buffer-max-length)
+                                (helm-substring-by-width name pe/helm-buffer-max-length)
                               (concat name (make-string
-                                            (- (+ helm-buffer-max-length 3)
+                                            (- (+ pe/helm-buffer-max-length 3)
                                                (string-width name)) ? )))
                             file-name)
                     file-name)))
           candidates))
-
 
 (defun pe/helm-find-file (file)
   (with-current-buffer
@@ -487,40 +484,26 @@
   (string-match-p (concat "^[^\t]*" (regexp-quote helm-pattern))
                   candidate))
 
+;; (defvar pe/helm-cache nil)
 (defvar pe/helm-source
   '((name . "Project explorer")
+    ;; (init . (lambda () (setq pe/helm-cache (pe/helm-candidates))))
+    ;; (candidates . pe/helm-cache)
     (candidates . pe/helm-candidates)
     (action . (("Find file" . pe/helm-find-file)))
     (filtered-candidate-transformer . pe/helm-transformer)
     (match . pe/helm-match)
+    (no-delay-on-input)
+    ;; (volatile)
     ;; (type . pe/file)
     ))
 
 (defun project-explorer-helm ()
   (interactive)
+  (require 'helm)
   (helm :sources '(pe/helm-source)))
 
-;; See:
-
-;; (helm :sources '(helm-source-buffers-list))
-
-;; (helm-buffer-details (current-buffer) t)
-;; ==>
-;; (#("untitled<3>" 0 11
-;;    (face italic help-echo #<buffer untitled<3>>))
-;;   #("139" 0 3
-;;     (face helm-buffer-size))
-;;   "lisp-interaction-mode"
-;;   #("(in `/media/projects/vb-shared/.emacs.d/elpa/helm-20131018.1450/')" 0 66
-;;     (face helm-buffer-process)))
-
-;; (define-helm-type-attribute 'buffer)
-
-;; (defun pe/completing-read-files ()
-;;   (let ((flat-tree (with-current-buffer pe/get-current-project-explorer-buffer
-;;                      ))
-;;         (completing-read ))
-;;     ))
+;;; Helm EOF
 
 (defun pe/occur-mode-find-occurrence-hook ()
   (save-excursion
