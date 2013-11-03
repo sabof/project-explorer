@@ -475,20 +475,30 @@
             (file-name-as-directory
              (file-name-directory
               (directory-file-name
-               default-directory)))))
-      (mapcar (lambda (file-name)
-                (let (( name (file-name-nondirectory file-name)))
-                  (cons (format "%s\t\t%s"
-                                (let (( file-name-nondirectory
-                                        (helm-substring-by-width
-                                         name pe/helm-buffer-max-length)))
-                                  (if (find-buffer-visiting file-name)
-                                      (propertize file-name-nondirectory
-                                                  'face 'font-lock-function-name-face)
-                                    file-name-nondirectory))
-                                (propertize file-name 'face 'font-lock-keyword-face))
-                        file-name)))
-              candidates))))
+               default-directory))))
+          visiting-list
+          rest-list)
+      (cl-dolist (file-name candidates)
+        (let* (( name (file-name-nondirectory file-name))
+               ( visiting (find-buffer-visiting file-name))
+               ( result-cons
+                 (cons (format "%s\t\t%s"
+                               (let (( file-name-nondirectory
+                                       (helm-substring-by-width
+                                        name pe/helm-buffer-max-length)))
+                                 (if visiting
+                                     (propertize file-name-nondirectory
+                                                 'face 'font-lock-function-name-face)
+                                   file-name-nondirectory))
+                               (propertize file-name 'face 'font-lock-keyword-face))
+                       file-name)))
+          (if visiting
+              (push result-cons visiting-list)
+            (push result-cons rest-list))
+          ))
+      (nconc (nreverse visiting-list)
+             (nreverse rest-list))
+      )))
 
 (defun pe/helm-find-file (file)
   (with-current-buffer
