@@ -49,7 +49,7 @@
           (const :tag "Right" right)))
 
 (defcustom pe/width 40
-  "Width of the side-bar."
+  "Width of the sidebar."
   :group 'project-explorer
   :type 'integer)
 
@@ -59,11 +59,21 @@
   :type 'boolean)
 
 (defcustom pe/omit-regex "^\\.\\|^#\\|~$"
-  "Specify which files to omit"
+  "Specify which files to omit."
   :group 'project-explorer
   :type '(choice
           (const :tag "Show all files" nil)
           (string :tag "Files matching this regex won't be shown")))
+
+(defface pe/file-face
+  '((t (:inherit default)))
+  "Face used for regular files in project-explorer sidebar."
+  :group 'project-explorer)
+
+(defface pe/directory-face
+  '((t (:inherit dired-directory)))
+  "Face used for directories in project-explorer sidebar."
+  :group 'project-explorer)
 
 (defvar-local pe/data nil)
 (defvar-local pe/folds-open nil)
@@ -564,7 +574,7 @@
   (setq-local hl-line-range-function
               'pe/hl-line-range)
   (font-lock-add-keywords
-   'project-explorer-mode '(("^.+/$" (0 'dired-directory append)))))
+   'project-explorer-mode '(("^.+/$" (0 'pe/directory-face append)))))
 
 (defun pe/show-file-internal (&optional file-name)
   (when file-name
@@ -812,6 +822,7 @@ Joined directories will be traversed as one."
                pe/goto-current-file-on-open)
       (with-current-buffer
           project-explorer-buffer
+        (face-remap-add-relative 'default 'pe/file-face)
         (pe/show-file-internal origin-file-name)))
     project-explorer-buffer))
 
