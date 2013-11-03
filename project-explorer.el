@@ -451,7 +451,7 @@
   (let ((current-prefix (if prefix
                             (concat prefix "/" (car tree))
                           (car tree))))
-    (cl-reduce 'append
+    (cl-reduce 'nconc
                (mapcar (lambda (it)
                          (if (consp it)
                              (pe/flatten-tree it current-prefix)
@@ -464,13 +464,13 @@
 
 (defun pe/helm-candidates ()
   (cl-remove-if (lambda (it) (string-match-p "/$" it))
-                (mapcar (lambda (it)
-                          (if (consp it)
-                              (pe/flatten-tree it)
-                            it))
-                        (cdr (with-current-buffer
-                                 (pe/get-current-project-explorer-buffer)
-                               pe/data)))))
+                (reduce 'nconc (mapcar (lambda (it)
+                                         (if (consp it)
+                                             (pe/flatten-tree it)
+                                           (list it)))
+                                       (cdr (with-current-buffer
+                                                (pe/get-current-project-explorer-buffer)
+                                              pe/data))))))
 
 (defun pe/helm-transformer (candidates source)
   (with-current-buffer
