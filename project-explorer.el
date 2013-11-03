@@ -460,32 +460,31 @@
 
 ;;; Helm
 
-(defvar pe/helm-buffer-max-length 20)
+(defvar pe/helm-buffer-max-length 30)
 
 (defun pe/helm-candidates ()
   (cl-remove-if (lambda (it) (string-match-p "/$" it))
-                (pe/flatten-tree (with-current-buffer
-                                     (pe/get-current-project-explorer-buffer)
-                                   pe/data))))
+                (mapcar (lambda (it)
+                          (if (consp it)
+                              (pe/flatten-tree it)
+                            it))
+                        (cdr (with-current-buffer
+                                 (pe/get-current-project-explorer-buffer)
+                               pe/data)))))
 
 (defun pe/helm-transformer (candidates source)
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
-    (let (( \default-directory
-            (file-name-as-directory
-             (file-name-directory
-              (directory-file-name
-               default-directory))))
-          visiting-list
-          rest-list)
+    (let (visiting-list rest-list)
       (cl-dolist (file-name candidates)
         (let* (( name (file-name-nondirectory file-name))
                ( visiting (find-buffer-visiting file-name))
                ( result-cons
-                 (cons (format "%s\t\t%s"
+                 (cons (format "%s\t%s"
                                (let (( file-name-nondirectory
-                                       (helm-substring-by-width
-                                        name pe/helm-buffer-max-length)))
+                                       (truncate-string-to-width
+                                        name pe/helm-buffer-max-length
+                                        nil ?  )))
                                  (if visiting
                                      (propertize file-name-nondirectory
                                                  'face 'font-lock-function-name-face)
@@ -503,12 +502,7 @@
 (defun pe/helm-find-file (file)
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
-    (let (( \default-directory
-            (file-name-as-directory
-             (file-name-directory
-              (directory-file-name
-               default-directory)))))
-      (find-file (expand-file-name file)))))
+    (find-file (expand-file-name file))))
 
 (defun pe/helm-match (candidate)
   (string-match-p (concat "^[^\t]*" (regexp-quote helm-pattern))
