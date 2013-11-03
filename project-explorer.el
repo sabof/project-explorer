@@ -33,6 +33,7 @@
 (require 'cl-lib)
 (require 'es-lib)
 (require 'dired)
+(require 'helm-utils)
 
 (defgroup project-explorer nil
   "A project explorer sidebar."
@@ -511,6 +512,9 @@
 (defun project-explorer-helm ()
   (interactive)
   (require 'helm)
+  (unless (pe/get-current-project-explorer-buffer)
+    (save-window-excursion
+      (project-explorer-open)))
   (helm :sources '(pe/helm-source)))
 
 ;;; Helm EOF
