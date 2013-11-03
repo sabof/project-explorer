@@ -469,17 +469,26 @@
                                    pe/data))))
 
 (defun pe/helm-transformer (candidates source)
-  (mapcar (lambda (file-name)
-            (let (( name (file-name-nondirectory file-name)))
-              (cons (format "%s\t(in `%s')"
-                            (if (> (string-width name) pe/helm-buffer-max-length)
-                                (helm-substring-by-width name pe/helm-buffer-max-length)
-                              (concat name (make-string
-                                            (- (+ pe/helm-buffer-max-length 3)
-                                               (string-width name)) ? )))
-                            file-name)
-                    file-name)))
-          candidates))
+  (with-current-buffer
+      (pe/get-current-project-explorer-buffer)
+    (let (( \default-directory
+            (file-name-as-directory
+             (file-name-directory
+              (directory-file-name
+               default-directory)))))
+      (mapcar (lambda (file-name)
+                (let (( name (file-name-nondirectory file-name)))
+                  (cons (format "%s\t\t%s"
+                                (let (( file-name-nondirectory
+                                        (helm-substring-by-width
+                                         name pe/helm-buffer-max-length)))
+                                  (if (find-buffer-visiting file-name)
+                                      (propertize file-name-nondirectory
+                                                  'face 'font-lock-function-name-face)
+                                    file-name-nondirectory))
+                                (propertize file-name 'face 'font-lock-keyword-face))
+                        file-name)))
+              candidates))))
 
 (defun pe/helm-find-file (file)
   (with-current-buffer
