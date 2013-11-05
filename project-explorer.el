@@ -475,7 +475,9 @@
 (defun pe/helm-transformer (candidates source)
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
-    (let (visiting-list rest-list)
+    (let (visiting-list
+          rest-list
+          (buffer-list (buffer-list)))
       (cl-dolist (file-name candidates)
         (let* (( name (file-name-nondirectory file-name))
                ( visiting (find-buffer-visiting file-name))
@@ -492,10 +494,14 @@
                                (propertize file-name 'face 'font-lock-keyword-face))
                        file-name)))
           (if visiting
-              (push result-cons visiting-list)
+              (push (cons visiting result-cons) visiting-list)
             (push result-cons rest-list))
           ))
-      (nconc (nreverse visiting-list)
+      (nconc (mapcar
+              'cdr (cl-sort
+                    visiting-list '<
+                    :key (lambda (cons)
+                           (cl-position (car cons) buffer-list))))
              (nreverse rest-list))
       )))
 
