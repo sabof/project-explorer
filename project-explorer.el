@@ -484,7 +484,7 @@
                                (let (( file-name-nondirectory
                                        (truncate-string-to-width
                                         name pe/helm-buffer-max-length
-                                        nil ?  )))
+                                        nil ?  t)))
                                  (if visiting
                                      (propertize file-name-nondirectory
                                                  'face 'font-lock-function-name-face)
@@ -516,7 +516,7 @@
     (candidates . pe/helm-candidates)
     (action . (("Find file" . pe/helm-find-file)))
     (filtered-candidate-transformer . pe/helm-transformer)
-    (match . pe/helm-match)
+    ;; (match . pe/helm-match)
     (no-delay-on-input)
     ;; (volatile)
     ;; (type . pe/file)
