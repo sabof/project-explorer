@@ -479,24 +479,29 @@
           rest-list
           (buffer-list (buffer-list)))
       (cl-dolist (file-name candidates)
-        (let* (( name (file-name-nondirectory file-name))
-               ( visiting (find-buffer-visiting file-name))
-               ( result-cons
-                 (cons (format "%s\t%s"
-                               (let (( file-name-nondirectory
-                                       (truncate-string-to-width
-                                        name pe/helm-buffer-max-length
-                                        nil ?  t)))
-                                 (if visiting
-                                     (propertize file-name-nondirectory
-                                                 'face 'font-lock-function-name-face)
-                                   file-name-nondirectory))
-                               (propertize file-name 'face 'font-lock-keyword-face))
-                       file-name)))
-          (if visiting
-              (push (cons visiting result-cons) visiting-list)
-            (push result-cons rest-list))
-          ))
+        (catch 'continue
+          (let* (( name (file-name-nondirectory file-name))
+                 ( visiting (find-buffer-visiting file-name))
+                 ( ---
+                   (and visiting
+                        (eq visiting helm-current-buffer)
+                        (throw 'continue nil)))
+                 ( result-cons
+                   (cons (format "%s\t%s"
+                                 (let (( file-name-nondirectory
+                                         (truncate-string-to-width
+                                          name pe/helm-buffer-max-length
+                                          nil ?  t)))
+                                   (if visiting
+                                       (propertize file-name-nondirectory
+                                                   'face 'font-lock-function-name-face)
+                                     file-name-nondirectory))
+                                 (propertize file-name 'face 'font-lock-keyword-face))
+                         file-name)))
+            (if visiting
+                (push (cons visiting result-cons) visiting-list)
+              (push result-cons rest-list))
+            )))
       (nconc (mapcar
               'cdr (cl-sort
                     visiting-list '<
@@ -629,9 +634,9 @@
                 `((side . ,pe/side)
                   )))))
     (when existing-window
-      (set-window-dedicated-p window nil)
-      (set-window-buffer window buffer))
-    (set-window-dedicated-p window t)
+      (setf (window-dedicated-p window) nil)
+      (setf (window-buffer window) buffer))
+    (setf (window-dedicated-p window) t)
     (unless existing-window
       (es-set-window-body-width window pe/width))
     (select-window window)
@@ -652,7 +657,7 @@
                (split-window (car non-side-windows)
                              nil 'left))))
     (select-window window)
-    (set-window-buffer window buffer)))
+    (setf (window-buffer window) buffer)))
 
 ;;; Interface
 
