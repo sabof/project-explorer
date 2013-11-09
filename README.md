@@ -13,6 +13,7 @@ A tree project explorer.
 ##Main commands:
 
     project-explorer-open -- open the sidebar
+    project-explorer-helm -- browse the file collection using helm
 
 ##Main key-bindings:
 
