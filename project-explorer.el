@@ -123,7 +123,7 @@
           (let ((\default-directory
                  (or pe/previous-directory
                      default-directory)))
-            (pe/get-filename-internal)))
+            (pe/get-filename)))
         ( window-start (window-start))
         ( starting-column (current-column)))
     (erase-buffer)
@@ -268,7 +268,7 @@
     (point)))
 
 (cl-defun pe/unfold-internal ()
-  (pe/folds-add (pe/get-filename-internal))
+  (pe/folds-add (pe/get-filename))
   (save-excursion
     (while (let* (( line-end (line-end-position))
                   ( ov (cl-find-if
@@ -291,7 +291,7 @@
 (defun pe/isearch-show (ov)
   (save-excursion
     (goto-char (overlay-start ov))
-    (pe/folds-add (pe/get-filename-internal))
+    (pe/folds-add (pe/get-filename))
     (delete-overlay ov)))
 
 (defun pe/isearch-show-temporarily (ov do-hide)
@@ -371,7 +371,7 @@
       (goto-char init-pos)
       nil)))
 
-(defun pe/fold-internal ()
+(defun pe/fold-this-line ()
   (let* (( indent
            (save-excursion
              (goto-char (line-beginning-position))
@@ -407,10 +407,10 @@
         )
       (cl-dolist (location locations-to-fold)
         (goto-char location)
-        (pe/fold-internal))
+        (pe/fold-this-line))
       )))
 
-(defun pe/folded-p ()
+(defun pe/user-folded-p ()
   (let (( ovs (save-excursion
                 (goto-char (es-total-line-beginning-position))
                 (goto-char (line-end-position))
@@ -428,7 +428,8 @@
                              nil t)
          (goto-char (match-end 1)))))
 
-(defun pe/get-filename-internal ()
+(defun pe/get-filename ()
+  "Return the filename at point."
   (save-excursion
     (let* (( get-line-text
              (lambda ()
@@ -547,7 +548,7 @@
 
 (defun pe/copy-file-name-as-kill ()
   (interactive)
-  (let ((file-name (pe/get-filename)))
+  (let ((file-name (pe/user-get-filename)))
     (when (called-interactively-p 'any)
       (message "%s" file-name))
     (kill-new file-name)))
@@ -665,9 +666,9 @@
 (cl-defun pe/fold ()
   (interactive)
   (when (or (looking-at-p ".*\n?\\'")
-            (pe/folded-p))
+            (pe/user-folded-p))
     (cl-return-from pe/fold))
-  (let* (( file-name (pe/get-filename)))
+  (let* (( file-name (pe/user-get-filename)))
     (pe/fold-until file-name (pe/folds-remove file-name))))
 
 (defun pe/fold-all ()
@@ -696,7 +697,7 @@
   (when expanded
     (pe/unfold-expanded-internal)
     (cl-return-from pe/unfold))
-  (unless (pe/folded-p)
+  (unless (pe/user-folded-p)
     (cl-return-from pe/unfold))
   (pe/unfold-internal))
 
@@ -759,13 +760,13 @@
 
 (defun pe/return ()
   (interactive)
-  (if (file-directory-p (pe/get-filename))
+  (if (file-directory-p (pe/user-get-filename))
       (pe/tab)
     (pe/find-file)))
 
 (defun pe/set-directory (dir)
   (interactive
-   (let ((file-name (pe/get-filename)))
+   (let ((file-name (pe/user-get-filename)))
      (list (read-file-name
             "Set directory to: "
             (if (file-directory-p file-name)
@@ -783,7 +784,7 @@
 (defun pe/find-file ()
   "Open the file or directory at point."
   (interactive)
-  (let ((file-name (pe/get-filename))
+  (let ((file-name (pe/user-get-filename))
         (win (cadr (window-list))))
     (pe/show-buffer
      (find-file-noselect file-name))))
@@ -792,7 +793,7 @@
   "Toggle folding at point.
 With a prefix argument, unfold all children."
   (interactive "P")
-  (if (or arg (pe/folded-p))
+  (if (or arg (pe/user-folded-p))
       (pe/unfold arg)
     (pe/fold)))
 
@@ -803,12 +804,12 @@ Joined directories will be traversed as one."
   (goto-char (es-total-line-beginning-position))
   (pe/up-element-internal))
 
-(defun pe/get-filename ()
-  "Return the aboslute file-name of the file at point."
-  (interactive)
+(defun pe/user-get-filename ()
+  "Return the aboslute file-name of the file at point.
+Makes adjustments for folding."
   (save-excursion
     (goto-char (es-total-line-beginning))
-    (pe/get-filename-internal)))
+    (pe/get-filename)))
 
 (cl-defun project-explorer-open ()
   "Show the `project-explorer-buffer', of the current project."
