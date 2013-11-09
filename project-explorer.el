@@ -55,8 +55,9 @@
   :type 'integer)
 
 (defcustom pe/inline-folders t
-  "When set to t, folders containing only one folder will be
- displayed as one entry."
+  "Try to inline folders.
+When set to t, folders containing only one folder will be displayed as one
+entry."
   :group 'project-explorer
   :type 'boolean)
 
@@ -66,8 +67,8 @@
   :type 'boolean)
 
 (defcustom pe/omit-regex "^\\.\\|^#\\|~$"
-  "Specify which files to omit. Directories matching this regular expression
- won't be traversed."
+  "Specify which files to omit.
+Directories matching this regular expression won't be traversed."
   :group 'project-explorer
   :type '(choice
           (const :tag "Show all files" nil)
@@ -532,6 +533,7 @@
     ))
 
 (defun project-explorer-helm ()
+  "Browse the project using helm."
   (interactive)
   (require 'helm)
   (unless (pe/get-current-project-explorer-buffer)
