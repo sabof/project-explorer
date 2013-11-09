@@ -10,6 +10,11 @@ A tree project explorer.
     * Occur support
     * Single key navigation keybindings
 
+##Main commands:
+
+    project-explorer-open -- open the sidebar
+    project-explorer-helm -- browse the file collection using helm
+
 ##Main key-bindings:
 
     "d"        Change directory
@@ -27,12 +32,7 @@ A tree project explorer.
     "RET"      toggle folding of visit file
     "f"        visit file or directory
 
-##Main commands:
-
-    project-explorer-open -- open the sidebar
-    project-explorer-helm -- browse the file collection using helm
-
-##Main customizable variables
+##Main customizable variables:
 
     pe/side        Set to 'left or 'right, depending on which side you want the sidebar to appear
     pe/width       The width of the sidebar when it first appears
