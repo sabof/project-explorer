@@ -448,9 +448,9 @@
              :test 'string-equal)))
 
 (defun pe/flatten-tree (tree &optional prefix)
-  (let ((current-prefix (if prefix
-                            (concat prefix "/" (car tree))
-                          (car tree))))
+  (let (( current-prefix (if prefix
+                             (concat prefix "/" (car tree))
+                           (car tree))))
     (cl-reduce 'nconc
                (mapcar (lambda (it)
                          (if (consp it)
@@ -463,22 +463,19 @@
 (defvar pe/helm-buffer-max-length 30)
 
 (defun pe/helm-candidates ()
-  (cl-remove-if (lambda (it) (string-match-p "/$" it))
-                (reduce 'nconc (mapcar (lambda (it)
-                                         (if (consp it)
-                                             (pe/flatten-tree it)
-                                           (list it)))
-                                       (cdr (with-current-buffer
-                                                (pe/get-current-project-explorer-buffer)
-                                              pe/data))))))
-
-(defun pe/helm-transformer (candidates source)
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
-    (let (visiting-list
-          rest-list
-          (buffer-list (buffer-list)))
-      (cl-dolist (file-name candidates)
+    (let* (( buffer-list (buffer-list))
+           ( candidates-raw
+             (cl-remove-if
+              (apply-partially 'string-match-p "/$")
+              (reduce 'nconc (mapcar (lambda (it)
+                                       (if (consp it)
+                                           (pe/flatten-tree it)
+                                         (list it)))
+                                     (cdr pe/data)))))
+           visiting-list rest-list)
+      (cl-dolist (file-name candidates-raw)
         (catch 'continue
           (let* (( name (file-name-nondirectory file-name))
                  ( visiting (find-buffer-visiting file-name))
@@ -494,19 +491,20 @@
                                           nil ?  t)))
                                    (if visiting
                                        (propertize file-name-nondirectory
-                                                   'face 'font-lock-function-name-face)
+                                                   'face
+                                                   'font-lock-function-name-face)
                                      file-name-nondirectory))
-                                 (propertize file-name 'face 'font-lock-keyword-face))
+                                 (propertize file-name
+                                             'face
+                                             'font-lock-keyword-face))
                          file-name)))
             (if visiting
                 (push (cons visiting result-cons) visiting-list)
               (push result-cons rest-list))
             )))
-      (nconc (mapcar
-              'cdr (cl-sort
-                    visiting-list '<
-                    :key (lambda (cons)
-                           (cl-position (car cons) buffer-list))))
+      (nconc (mapcar 'cdr (cl-sort visiting-list '<
+                                   :key (lambda (cons)
+                                          (cl-position (car cons) buffer-list))))
              (nreverse rest-list))
       )))
 
@@ -515,22 +513,12 @@
       (pe/get-current-project-explorer-buffer)
     (find-file (expand-file-name file))))
 
-(defun pe/helm-match (candidate)
-  (string-match-p (concat "^[^\t]*" (regexp-quote helm-pattern))
-                  candidate))
-
 ;; (defvar pe/helm-cache nil)
 (defvar pe/helm-source
-  '((name . "Project explorer")
-    ;; (init . (lambda () (setq pe/helm-cache (pe/helm-candidates))))
-    ;; (candidates . pe/helm-cache)
-    (candidates . pe/helm-candidates)
-    (action . (("Find file" . pe/helm-find-file)))
-    (filtered-candidate-transformer . pe/helm-transformer)
-    ;; (match . pe/helm-match)
-    (no-delay-on-input)
-    ;; (volatile)
-    ;; (type . pe/file)
+  '(( name . "Project explorer")
+    ( candidates . pe/helm-candidates)
+    ( action . (("Find file" . pe/helm-find-file)))
+    ( no-delay-on-input)
     ))
 
 (defun project-explorer-helm ()
