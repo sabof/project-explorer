@@ -117,36 +117,21 @@ Directories matching this regular expression won't be traversed."
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
 
-(cl-defun pe/revert-buffer (&rest ignore)
-  (let (( inhibit-read-only t)
-        ( project-explorer-buffer (current-buffer))
-        ( starting-name
-          (let ((\default-directory
-                 (or pe/previous-directory
-                     default-directory)))
-            (pe/get-filename)))
-        ( window-start (window-start))
-        ( starting-column (current-column)))
-    (erase-buffer)
-    (delete-all-overlays)
-    (insert "Searching for files...")
-    (funcall pe/directory-files-function
-             default-directory
-             (lambda (result)
-               (when result
-                 (with-current-buffer
-                     project-explorer-buffer
-                   (setq pe/data result)
-                   (let ((inhibit-read-only t))
-                     (erase-buffer)
-                     (pe/print-indented-tree
-                      (funcall (if pe/inline-folders
-                                   'pe/compress-tree
-                                 'identity)
-                               (pe/sort result)))
-                     (font-lock-fontify-buffer)
-                     (goto-char (point-min)))
-                   ))))
+(defun pe/data-ready-function
+    (data buffer starting-name window-start starting-column user-reverting)
+  (with-current-buffer
+      buffer
+    (setq pe/data data)
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (delete-all-overlays)
+      (pe/print-indented-tree
+       (funcall (if pe/inline-folders
+                    'pe/compress-tree
+                  'identity)
+                (pe/sort data)))
+      (font-lock-fontify-buffer)
+      (goto-char (point-min)))
     (if (not (string-equal pe/previous-directory
                            default-directory))
         (pe/folds-reset)
@@ -156,8 +141,34 @@ Directories matching this regular expression won't be traversed."
         (when (pe/goto-file starting-name nil t)
           (move-to-column starting-column))))
     (setq pe/previous-directory default-directory)
-    (when (eq this-command 'revert-buffer)
-      (message "Refresh complete"))
+    (when user-reverting
+      (message "Refresh complete"))))
+
+(cl-defun pe/revert-buffer (&rest ignore)
+  (let (( inhibit-read-only t)
+        ( project-explorer-buffer (current-buffer))
+        ( starting-name
+          (let ((\default-directory
+                 (or pe/previous-directory
+                     default-directory)))
+            (pe/get-filename)))
+        ( window-start (window-start))
+        ( starting-column (current-column))
+        ( user-reverting (eq this-command 'revert-buffer)))
+    (unless user-reverting
+      (erase-buffer)
+      (delete-all-overlays)
+      (insert "Searching for files..."))
+    (funcall pe/directory-files-function
+             default-directory
+             (lambda (data)
+               (pe/data-ready-function
+                data
+                (current-buffer)
+                starting-name
+                window-start
+                starting-column
+                user-reverting)))
     ))
 
 (defun pe/file-interesting-p (name)
