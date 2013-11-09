@@ -54,6 +54,12 @@
   :group 'project-explorer
   :type 'integer)
 
+(defcustom pe/inline-folders t
+  "When set to t, folders containing only one folder will be
+ displayed as one entry."
+  :group 'project-explorer
+  :type 'boolean)
+
 (defcustom pe/goto-current-file-on-open t
   "When true, focus on the current file each time project explorer is revealed."
   :group 'project-explorer
@@ -133,8 +139,10 @@
                    (let ((inhibit-read-only t))
                      (erase-buffer)
                      (pe/print-indented-tree
-                      (pe/compress-tree
-                       (pe/sort result)))
+                      (funcall (if pe/inline-folders
+                                   'pe/compress-tree
+                                 'identity)
+                               (pe/sort result)))
                      (font-lock-fontify-buffer)
                      (goto-char (point-min)))
                    ))))
