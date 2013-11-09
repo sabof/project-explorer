@@ -60,7 +60,8 @@
   :type 'boolean)
 
 (defcustom pe/omit-regex "^\\.\\|^#\\|~$"
-  "Specify which files to omit."
+  "Specify which files to omit. Directories matching this regular expression
+ won't be traversed."
   :group 'project-explorer
   :type '(choice
           (const :tag "Show all files" nil)
