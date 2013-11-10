@@ -146,7 +146,7 @@ Set once, when the buffer is first created.")
       (pe/folds-restore)
       (set-window-start nil window-start)
       (when starting-name
-        (when (pe/goto-file starting-name nil t)
+        (when (pe/goto-filename starting-name nil t)
           (move-to-column starting-column))))
     (setq pe/previous-directory default-directory)
     (when user-reverting
@@ -274,7 +274,7 @@ Set once, when the buffer is first created.")
   (let ((old-folds pe/folds-open))
     (pe/folds-reset)
     (cl-dolist (fold old-folds)
-      (pe/goto-file fold nil t)
+      (pe/goto-filename fold nil t)
       (pe/unfold-internal))))
 
 (defun pe/current-indnetation ()
@@ -339,15 +339,15 @@ Set once, when the buffer is first created.")
     (overlay-put ov 'priority priority)
     ov))
 
-(cl-defun pe/goto-file
+(cl-defun pe/goto-filename
     (file-name &optional on-each-semgent-function use-best-match)
   (when (string-equal (expand-file-name file-name) default-directory)
-    (cl-return-from pe/goto-file nil))
+    (cl-return-from pe/goto-filename nil))
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
                          (if (string-prefix-p default-directory file-name)
                              (substring file-name (length default-directory))
-                           (cl-return-from pe/goto-file))
+                           (cl-return-from pe/goto-filename))
                        file-name)
                      "/" t))
          ( init-pos (point))
@@ -412,13 +412,13 @@ Set once, when the buffer is first created.")
 
 (defun pe/fold-until (root ancestor-list)
   (save-excursion
-    (let* ((root-point (save-excursion (pe/goto-file root)))
+    (let* ((root-point (save-excursion (pe/goto-filename root)))
            (locations-to-fold (list root-point)))
       (cl-assert root-point nil
-                 "pe/goto-file returned nil for %s"
+                 "pe/goto-filename returned nil for %s"
                  root)
       (cl-dolist (path ancestor-list)
-        (cl-pushnew (pe/goto-file path) locations-to-fold)
+        (cl-pushnew (pe/goto-filename path) locations-to-fold)
         (cl-loop (pe/up-element)
                  (if (or (<= (point) root-point)
                          (memq (point) locations-to-fold))
@@ -625,7 +625,7 @@ Set once, when the buffer is first created.")
 
 (defun pe/show-file-internal (&optional file-name)
   (when file-name
-    (pe/goto-file file-name))
+    (pe/goto-filename file-name))
   (save-excursion
     (when (pe/up-element-internal)
       (pe/unfold-internal))))
