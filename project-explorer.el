@@ -84,18 +84,26 @@ Directories matching this regular expression won't be traversed."
   "Face used for directories in project-explorer sidebar."
   :group 'project-explorer)
 
-(defvar-local pe/data nil)
-(defvar-local pe/folds-open nil)
-(defvar-local pe/previous-directory nil)
-(defvar-local pe/project-root nil)
-
 (defvar pe/project-root-function
+  "A function that determines the project root.
+Called with no arguments, with the originating buffer as current."
   (lambda ()
     (expand-file-name
      (or (and (fboundp 'projectile-project-root)
               (projectile-project-root))
          (locate-dominating-file default-directory ".git")
          default-directory))))
+
+;;; Internal variables
+
+(defvar-local pe/project-root nil
+  "The project a project-explorer buffer belongs to.
+Set once, when the buffer is first created.")
+(defvar-local pe/data nil)
+(defvar-local pe/folds-open nil)
+(defvar-local pe/previous-directory nil)
+
+;;; Functions
 
 (cl-defun pe/get-directory-tree-simple (dir done-func)
   (let (walker)
