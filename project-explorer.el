@@ -496,6 +496,16 @@ Set once, when the buffer is first created.")
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
     (let* (( buffer-list (buffer-list))
+           ( \default-directory-length
+             (length default-directory))
+           ( visited-files
+             (mapcar (lambda (long-name)
+                       (substring long-name
+                                  default-directory-length))
+                     (remove-if (lambda (name)
+                                  (or (null name)
+                                      (not (string-prefix-p default-directory name))))
+                                (mapcar 'buffer-file-name (buffer-list)))))
            ( candidates-raw
              (cl-remove-if
               (apply-partially 'string-match-p "/$")
@@ -508,7 +518,8 @@ Set once, when the buffer is first created.")
       (cl-dolist (file-name candidates-raw)
         (catch 'continue
           (let* (( name (file-name-nondirectory file-name))
-                 ( visiting (find-buffer-visiting file-name))
+                 ( visiting (cl-find file-name visited-files
+                                     :test 'string-equal))
                  ( ---
                    (and visiting
                         (eq visiting helm-current-buffer)
@@ -529,12 +540,14 @@ Set once, when the buffer is first created.")
                                              'font-lock-keyword-face))
                          file-name)))
             (if visiting
-                (push (cons visiting result-cons) visiting-list)
+                (push result-cons visiting-list)
               (push result-cons rest-list))
             )))
-      (nconc (mapcar 'cdr (cl-sort visiting-list '<
-                                   :key (lambda (cons)
-                                          (cl-position (car cons) buffer-list))))
+      (nconc (cl-sort visiting-list '<
+                      :key (lambda (cons)
+                             (or (cl-position (car cons) visited-files)
+                                 ;; most-positive-fixnum
+                                 )))
              (nreverse rest-list))
       )))
 
