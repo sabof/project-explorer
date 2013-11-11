@@ -235,6 +235,8 @@ Set once, when the buffer is first created.")
                  (1- start) (1- (point))))
               ))))
 
+;;; PE/FOLDS
+
 (defun pe/folds-add (file-name)
   (setq pe/folds-open
         (cons file-name
@@ -277,6 +279,8 @@ Set once, when the buffer is first created.")
       (pe/goto-file fold nil t)
       (pe/unfold-internal))))
 
+;;; PE/FOLDS EOF
+
 (defun pe/current-indnetation ()
   (- (pe/tab-ending)
      (line-beginning-position)))
@@ -301,7 +305,7 @@ Set once, when the buffer is first created.")
                t))
       (pe/up-element-internal))))
 
-(defun pe/unfold-expanded-internal ()
+(defun pe/unfold-descendants ()
   (save-excursion
     (goto-char (line-beginning-position))
     (let (( end (save-excursion (pe/forward-element))))
@@ -410,14 +414,14 @@ Set once, when the buffer is first created.")
     (pe/make-hiding-overlay (line-end-position 1)
                             end)))
 
-(defun pe/fold-until (root ancestor-list)
+(defun pe/fold-with-descentants (root descendant-list)
   (save-excursion
     (let* ((root-point (save-excursion (pe/goto-file root)))
            (locations-to-fold (list root-point)))
       (cl-assert root-point nil
                  "pe/goto-file returned nil for %s"
                  root)
-      (cl-dolist (path ancestor-list)
+      (cl-dolist (path descendant-list)
         (cl-pushnew (pe/goto-file path) locations-to-fold)
         (cl-loop (pe/up-element)
                  (if (or (<= (point) root-point)
@@ -488,7 +492,7 @@ Set once, when the buffer is first created.")
                            (list (concat current-prefix "/" it))))
                        (cdr tree)))))
 
-;;; Helm
+;;; HELM
 
 (defvar pe/helm-buffer-max-length 30)
 
@@ -573,7 +577,7 @@ Set once, when the buffer is first created.")
       (project-explorer-open)))
   (helm :sources '(pe/helm-source)))
 
-;;; Helm EOF
+;;; HELM EOF
 
 (defun pe/occur-mode-find-occurrence-hook ()
   (save-excursion
@@ -703,7 +707,7 @@ Set once, when the buffer is first created.")
             (pe/user-folded-p))
     (cl-return-from pe/fold))
   (let* (( file-name (pe/user-get-filename)))
-    (pe/fold-until file-name (pe/folds-remove file-name))))
+    (pe/fold-with-descentants file-name (pe/folds-remove file-name))))
 
 (defun pe/fold-all ()
   (interactive)
@@ -717,7 +721,7 @@ Set once, when the buffer is first created.")
   (save-excursion
     (goto-char (point-min))
     (while (re-search-forward "^.+/$" nil t)
-      (pe/unfold-expanded-internal))))
+      (pe/unfold-descendants))))
 
 (cl-defun pe/unfold (&optional expanded)
   (interactive "P")
@@ -729,7 +733,7 @@ Set once, when the buffer is first created.")
       (goto-char line-beginning)
       (goto-char (1- (line-end-position)))))
   (when expanded
-    (pe/unfold-expanded-internal)
+    (pe/unfold-descendants)
     (cl-return-from pe/unfold))
   (unless (pe/user-folded-p)
     (cl-return-from pe/unfold))
