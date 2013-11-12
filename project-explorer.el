@@ -502,6 +502,7 @@ Set once, when the buffer is first created.")
     (let* (( buffer-list (buffer-list))
            ( \default-directory-length
              (length default-directory))
+           ;; Contains paths of open buffers relative to default-directory
            ( visited-files
              (mapcar (lambda (long-name)
                        (substring long-name
@@ -510,7 +511,7 @@ Set once, when the buffer is first created.")
                                   (or (null name)
                                       (not (string-prefix-p default-directory name))))
                                 (mapcar 'buffer-file-name (buffer-list)))))
-           ( candidates-raw
+           ( flattened-file-list
              (cl-remove-if
               (apply-partially 'string-match-p "/$")
               (reduce 'nconc (mapcar (lambda (it)
@@ -519,15 +520,16 @@ Set once, when the buffer is first created.")
                                          (list it)))
                                      (cdr pe/data)))))
            visiting-list rest-list)
-      (cl-dolist (file-name candidates-raw)
+      (cl-dolist (file-name flattened-file-list)
         (catch 'continue
           (let* (( name (file-name-nondirectory file-name))
-                 ( visiting (cl-find file-name visited-files
-                                     :test 'string-equal))
-                 ( ---
-                   (and visiting
-                        (eq visiting helm-current-buffer)
-                        (throw 'continue nil)))
+                 ( visiting (when (cl-find file-name visited-files
+                                           :test 'string-equal)
+                              (throw 'continue nil)))
+                 ;; ( ---
+                 ;;   (and visiting
+                 ;;        (eq visiting helm-current-buffer)
+                 ;;        (throw 'continue nil)))
                  ( result-cons
                    (cons (format "%s\t%s"
                                  (let (( file-name-nondirectory
