@@ -106,7 +106,7 @@ Set once, when the buffer is first created.")
 
 ;;; Functions
 
-(cl-defun pe/get-directory-tree-simple (dir done-func)
+(defun pe/get-directory-tree-simple (dir done-func)
   (cl-labels
       ((walker (dir)
          (let (( files (cl-remove-if
@@ -257,10 +257,9 @@ Set once, when the buffer is first created.")
               (string-prefix-p file-name listed-file-name))
             pe/folds-open))
          ( removed-folds
-           (cl-set-difference
-            pe/folds-open
-            new-folds
-            :test 'string-equal)))
+           (cl-set-difference pe/folds-open
+                              new-folds
+                              :test 'string-equal)))
     (setq pe/folds-open new-folds)
     (when (and parent
                (not (string-equal parent default-directory))
@@ -333,15 +332,15 @@ Set once, when the buffer is first created.")
                     (skip-chars-forward "\t")
                     (- (point) line-beginning)))
          ( priority (- 100 indent)))
-    (overlay-put ov 'isearch-open-invisible-temporary
-                 'pe/isearch-show-temporarily)
-    (overlay-put ov 'isearch-open-invisible
-                 'pe/isearch-show)
-    (overlay-put ov 'invisible t)
-    (overlay-put ov 'display "...")
-    (overlay-put ov 'is-pe-hider t)
-    (overlay-put ov 'evaporate t)
-    (overlay-put ov 'priority priority)
+    (mapcar (apply-partially 'apply 'overlay-put ov)
+            `((isearch-open-invisible-temporary
+               pe/isearch-show-temporarily)
+              (isearch-open-invisible pe/isearch-show)
+              (invisible t)
+              (display "...")
+              (is-pe-hider t)
+              (evaporate t)
+              (priority ,priority)))
     ov))
 
 (cl-defun pe/goto-file
@@ -677,8 +676,8 @@ Set once, when the buffer is first created.")
                 `((side . ,pe/side)
                   )))))
     (when existing-window
-      (setf (window-dedicated-p window) nil)
-      (setf (window-buffer window) buffer))
+      (setf (window-dedicated-p window) nil
+            (window-buffer window) buffer))
     (setf (window-dedicated-p window) t)
     (unless existing-window
       (es-set-window-body-width window pe/width))
@@ -822,8 +821,8 @@ Set once, when the buffer is first created.")
   (unless (file-directory-p dir)
     (user-error "\"%s\" is not a directory"
                 dir))
-  (setq dir (file-name-as-directory dir))
-  (setq default-directory (expand-file-name dir))
+  (setq dir (file-name-as-directory dir)
+        default-directory (expand-file-name dir))
   (revert-buffer))
 
 (defun pe/find-file ()
@@ -887,12 +886,9 @@ Makes adjustments for folding."
                  (revert-buffer)
                  (current-buffer)
                  ))))
-    (pe/show-buffer-in-side-window
-     project-explorer-buffer)
-    (when (and origin-file-name
-               pe/goto-current-file-on-open)
-      (with-current-buffer
-          project-explorer-buffer
+    (pe/show-buffer-in-side-window project-explorer-buffer)
+    (when (and origin-file-name pe/goto-current-file-on-open)
+      (with-current-buffer project-explorer-buffer
         (face-remap-add-relative 'default 'pe/file-face)
         (pe/show-file-internal origin-file-name)))
     project-explorer-buffer))
