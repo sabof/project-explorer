@@ -107,21 +107,20 @@ Set once, when the buffer is first created.")
 ;;; Functions
 
 (cl-defun pe/get-directory-tree-simple (dir done-func)
-  (let (walker)
-    (setq walker
-          (lambda (dir)
-            (let (( files (cl-remove-if
-                           (lambda (file)
-                             (or (member file '("." ".."))
-                                 (not (pe/file-interesting-p file))))
-                           (directory-files dir))))
-              (cons (file-name-nondirectory (directory-file-name dir))
-                    (mapcar (lambda (file)
-                              (if (file-directory-p (concat dir file))
-                                  (funcall walker (concat dir file "/"))
-                                file))
-                            files)))))
-    (funcall done-func (funcall walker dir))))
+  (cl-labels
+      ((walker (dir)
+         (let (( files (cl-remove-if
+                        (lambda (file)
+                          (or (member file '("." ".."))
+                              (not (pe/file-interesting-p file))))
+                        (directory-files dir))))
+           (cons (file-name-nondirectory (directory-file-name dir))
+                 (mapcar (lambda (file)
+                           (if (file-directory-p (concat dir file))
+                               (walker (concat dir file "/"))
+                             file))
+                         files)))))
+    (funcall done-func (walker dir))))
 
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
@@ -473,6 +472,23 @@ Set once, when the buffer is first created.")
         (setq result (file-name-as-directory result)))
       result)))
 
+(defun pe/get-filename ()
+  "Return the filename at point."
+  (save-excursion
+    (cl-labels
+        (( get-line-text ()
+           (goto-char (line-beginning-position))
+           (skip-chars-forward "\t ")
+           (buffer-substring-no-properties
+            (point) (line-end-position))))
+      (let (( result (get-line-text)))
+        (while (pe/up-element-internal)
+          (setq result (concat (get-line-text) result)))
+        (setq result (expand-file-name result))
+        (when (file-directory-p result)
+          (setq result (file-name-as-directory result)))
+        result))))
+
 (defun pe/get-current-project-explorer-buffer ()
   (let (( project-root (funcall pe/project-root-function))
         ( project-explorer-buffers (pe/get-project-explorer-buffers)))
@@ -505,18 +521,15 @@ Set once, when the buffer is first created.")
       (cl-return-from pe/helm-candidates pe/helm-cache))
     (let* (( visited-files
              ;; Contains paths of open buffers relative to default-directory
-             (progn
-               (setq tmp2 helm-current-buffer)
-               (setq tmp
-                     (let (( buffer-list (remove helm-current-buffer (buffer-list)))
-                           ( \default-directory-length
-                             (length default-directory)))
-                       (mapcar (lambda (long-name)
-                                 (substring long-name default-directory-length))
-                               (remove-if (lambda (name)
-                                            (or (null name)
-                                                (not (string-prefix-p default-directory name))))
-                                          (mapcar 'buffer-file-name buffer-list)))))))
+             (let (( buffer-list (remove helm-current-buffer (buffer-list)))
+                   ( \default-directory-length
+                     (length default-directory)))
+               (mapcar (lambda (long-name)
+                         (substring long-name default-directory-length))
+                       (remove-if (lambda (name)
+                                    (or (null name)
+                                        (not (string-prefix-p default-directory name))))
+                                  (mapcar 'buffer-file-name buffer-list)))))
            ( flattened-file-list
              (cl-remove-if
               (lambda (file-name)
