@@ -485,12 +485,11 @@ Set once, when the buffer is first created.")
   (let (( current-prefix (if prefix
                              (concat prefix "/" (car tree))
                            (car tree))))
-    (cl-reduce 'nconc
-               (mapcar (lambda (it)
-                         (if (consp it)
-                             (pe/flatten-tree it current-prefix)
-                           (list (concat current-prefix "/" it))))
-                       (cdr tree)))))
+    (cl-mapcan (lambda (it)
+                 (if (consp it)
+                     (pe/flatten-tree it current-prefix)
+                   (list (concat current-prefix "/" it))))
+               (cdr tree))))
 
 ;;; HELM
 
@@ -514,11 +513,11 @@ Set once, when the buffer is first created.")
            ( flattened-file-list
              (cl-remove-if
               (apply-partially 'string-match-p "/$")
-              (reduce 'nconc (mapcar (lambda (it)
-                                       (if (consp it)
-                                           (pe/flatten-tree it)
-                                         (list it)))
-                                     (cdr pe/data)))))
+              (cl-mapcan (lambda (it)
+                           (if (consp it)
+                               (pe/flatten-tree it)
+                             (list it)))
+                         (cdr pe/data))))
            visiting-list rest-list)
       (cl-dolist (file-name flattened-file-list)
         (catch 'continue
