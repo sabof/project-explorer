@@ -102,6 +102,7 @@ Set once, when the buffer is first created.")
 (defvar-local pe/data nil)
 (defvar-local pe/folds-open nil)
 (defvar-local pe/previous-directory nil)
+(defvar-local pe/helm-cache nil)
 
 ;;; Functions
 
@@ -149,6 +150,7 @@ Set once, when the buffer is first created.")
         (when (pe/goto-file starting-name nil t)
           (move-to-column starting-column))))
     (setq pe/previous-directory default-directory)
+    (setq pe/helm-cache)
     (when user-reverting
       (message "Refresh complete"))))
 
@@ -496,20 +498,25 @@ Set once, when the buffer is first created.")
 
 (defvar pe/helm-buffer-max-length 30)
 
-(defun pe/helm-candidates ()
+(cl-defun pe/helm-candidates ()
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
+    (when pe/helm-cache
+      (cl-return-from pe/helm-candidates pe/helm-cache))
     (let* (( visited-files
              ;; Contains paths of open buffers relative to default-directory
-             (let (( buffer-list (remove helm-current-buffer (buffer-list)))
-                   ( \default-directory-length
-                     (length default-directory)))
-               (mapcar (lambda (long-name)
-                         (substring long-name default-directory-length))
-                       (remove-if (lambda (name)
-                                    (or (null name)
-                                        (not (string-prefix-p default-directory name))))
-                                  (mapcar 'buffer-file-name (buffer-list))))))
+             (progn
+               (setq tmp2 helm-current-buffer)
+               (setq tmp
+                     (let (( buffer-list (remove helm-current-buffer (buffer-list)))
+                           ( \default-directory-length
+                             (length default-directory)))
+                       (mapcar (lambda (long-name)
+                                 (substring long-name default-directory-length))
+                               (remove-if (lambda (name)
+                                            (or (null name)
+                                                (not (string-prefix-p default-directory name))))
+                                          (mapcar 'buffer-file-name buffer-list)))))))
            ( flattened-file-list
              (cl-remove-if
               (lambda (file-name)
@@ -535,15 +542,12 @@ Set once, when the buffer is first created.")
                                                'font-lock-function-name-face)
                                  file-name-nondirectory))
                              (propertize file-name 'face 'font-lock-keyword-face))
-                     file-name)))
-           ( rest-list
-             (mapcar (apply-partially to-cons nil)
-                     flattened-file-list))
-           ( visiting-list
-             (mapcar (apply-partially to-cons t)
-                     visited-files)))
-      (nconc visiting-list
-             rest-list)
+                     file-name))))
+      (setq pe/helm-cache
+            (nconc (mapcar (apply-partially to-cons t)
+                           visited-files)
+                   (mapcar (apply-partially to-cons nil)
+                           flattened-file-list)))
       )))
 
 (defun pe/helm-find-file (file)
@@ -551,7 +555,6 @@ Set once, when the buffer is first created.")
       (pe/get-current-project-explorer-buffer)
     (find-file (expand-file-name file))))
 
-;; (defvar pe/helm-cache nil)
 (defvar pe/helm-source
   '(( name . "Project explorer")
     ( candidates . pe/helm-candidates)
