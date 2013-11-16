@@ -482,9 +482,10 @@ Set once, when the buffer is first created.")
              :test 'string-equal)))
 
 (defun pe/flatten-tree (tree &optional prefix)
-  (let (( current-prefix (if prefix
-                             (concat prefix "/" (car tree))
-                           (car tree))))
+  (let (( current-prefix
+          (if prefix
+              (concat prefix "/" (car tree))
+            (car tree))))
     (cl-mapcan (lambda (it)
                  (if (consp it)
                      (pe/flatten-tree it current-prefix)
@@ -498,62 +499,51 @@ Set once, when the buffer is first created.")
 (defun pe/helm-candidates ()
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
-    (let* (( buffer-list (buffer-list))
-           ( \default-directory-length
-             (length default-directory))
-           ;; Contains paths of open buffers relative to default-directory
-           ( visited-files
-             (mapcar (lambda (long-name)
-                       (substring long-name
-                                  default-directory-length))
-                     (remove-if (lambda (name)
-                                  (or (null name)
-                                      (not (string-prefix-p default-directory name))))
-                                (mapcar 'buffer-file-name (buffer-list)))))
+    (let* (( visited-files
+             ;; Contains paths of open buffers relative to default-directory
+             (let (( buffer-list (remove helm-current-buffer (buffer-list)))
+                   ( \default-directory-length
+                     (length default-directory)))
+               (mapcar (lambda (long-name)
+                         (substring long-name default-directory-length))
+                       (remove-if (lambda (name)
+                                    (or (null name)
+                                        (not (string-prefix-p default-directory name))))
+                                  (mapcar 'buffer-file-name (buffer-list))))))
            ( flattened-file-list
              (cl-remove-if
-              (apply-partially 'string-match-p "/$")
+              (lambda (file-name)
+                (or (string-match-p "/$" file-name)
+                    (member file-name visited-files)))
               (cl-mapcan (lambda (it)
                            (if (consp it)
                                (pe/flatten-tree it)
                              (list it)))
                          (cdr pe/data))))
-           visiting-list rest-list)
-      (cl-dolist (file-name flattened-file-list)
-        (catch 'continue
-          (let* (( name (file-name-nondirectory file-name))
-                 ( visiting (when (cl-find file-name visited-files
-                                           :test 'string-equal)
-                              (throw 'continue nil)))
-                 ;; ( ---
-                 ;;   (and visiting
-                 ;;        (eq visiting helm-current-buffer)
-                 ;;        (throw 'continue nil)))
-                 ( result-cons
-                   (cons (format "%s\t%s"
-                                 (let (( file-name-nondirectory
-                                         (truncate-string-to-width
-                                          name pe/helm-buffer-max-length
-                                          nil ?  t)))
-                                   (if visiting
-                                       (propertize file-name-nondirectory
-                                                   'face
-                                                   'font-lock-function-name-face)
-                                     file-name-nondirectory))
-                                 (propertize file-name
-                                             'face
-                                             'font-lock-keyword-face))
-                         file-name)))
-            (if visiting
-                (push result-cons visiting-list)
-              (push result-cons rest-list))
-            )))
-      (nconc (cl-sort visiting-list '<
-                      :key (lambda (cons)
-                             (or (cl-position (car cons) visited-files)
-                                 ;; most-positive-fixnum
-                                 )))
-             (nreverse rest-list))
+           ( to-cons
+             (lambda (highlight file-name)
+               (cons (format "%s\t%s"
+                             (let (( file-name-nondirectory
+                                     (truncate-string-to-width
+                                      (file-name-nondirectory
+                                       file-name)
+                                      pe/helm-buffer-max-length
+                                      nil ?  t)))
+                               (if highlight
+                                   (propertize file-name-nondirectory
+                                               'face
+                                               'font-lock-function-name-face)
+                                 file-name-nondirectory))
+                             (propertize file-name 'face 'font-lock-keyword-face))
+                     file-name)))
+           ( rest-list
+             (mapcar (apply-partially to-cons nil)
+                     flattened-file-list))
+           ( visiting-list
+             (mapcar (apply-partially to-cons t)
+                     visited-files)))
+      (nconc visiting-list
+             rest-list)
       )))
 
 (defun pe/helm-find-file (file)
