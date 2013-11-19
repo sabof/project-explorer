@@ -516,8 +516,6 @@ Set once, when the buffer is first created.")
 (cl-defun pe/helm-candidates ()
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
-    (when pe/helm-cache
-      (cl-return-from pe/helm-candidates pe/helm-cache))
     (let* (( visited-files
              ;; Contains paths of open buffers relative to default-directory
              (let (( buffer-list (remove helm-current-buffer (buffer-list)))
@@ -534,11 +532,13 @@ Set once, when the buffer is first created.")
               (lambda (file-name)
                 (or (string-match-p "/$" file-name)
                     (member file-name visited-files)))
-              (cl-mapcan (lambda (it)
-                           (if (consp it)
-                               (pe/flatten-tree it)
-                             (list it)))
-                         (cdr pe/data))))
+              (or pe/helm-cache
+                  (setq pe/helm-cache
+                        (cl-mapcan (lambda (it)
+                                     (if (consp it)
+                                         (pe/flatten-tree it)
+                                       (list it)))
+                                   (cdr pe/data))))))
            ( to-cons
              (lambda (highlight file-name)
                (cons (format "%s\t%s"
@@ -555,11 +555,10 @@ Set once, when the buffer is first created.")
                                  file-name-nondirectory))
                              (propertize file-name 'face 'font-lock-keyword-face))
                      file-name))))
-      (setq pe/helm-cache
-            (nconc (mapcar (apply-partially to-cons t)
-                           visited-files)
-                   (mapcar (apply-partially to-cons nil)
-                           flattened-file-list)))
+      (nconc (mapcar (apply-partially to-cons t)
+                     visited-files)
+             (mapcar (apply-partially to-cons nil)
+                     flattened-file-list))
       )))
 
 (defun pe/helm-find-file (file)
