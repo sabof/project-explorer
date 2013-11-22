@@ -31,6 +31,7 @@ A tree project explorer.
     "C-U TAB"  unfold descendants
     "RET"      toggle folding of visit file
     "f"        visit file or directory
+    "w"        copy to clipboard and show the path of file at point
 
 ##Main customizable variables:
 
