@@ -1,5 +1,5 @@
 ;;; project-explorer.el --- A project explorer sidebar -*- lexical-binding: t -*-
-;;; Version: 0.9
+;;; Version: 0.10
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3"))
