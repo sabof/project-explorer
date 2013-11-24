@@ -85,14 +85,14 @@ Directories matching this regular expression won't be traversed."
   :group 'project-explorer)
 
 (defvar pe/project-root-function
-  "A function that determines the project root.
-Called with no arguments, with the originating buffer as current."
   (lambda ()
     (expand-file-name
      (or (and (fboundp 'projectile-project-root)
               (projectile-project-root))
          (locate-dominating-file default-directory ".git")
-         default-directory))))
+         default-directory)))
+  "A function that determines the project root.
+Called with no arguments, with the originating buffer as current.")
 
 ;;; Internal variables
 
