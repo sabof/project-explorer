@@ -43,6 +43,14 @@
   'pe/get-directory-tree-find)
 
 (defvar pe/async-interval 0.5)
+(defvar pe/use-cache t)
+(defvar pe/auto-refresh-cache t)
+(defvar pe/cache-dir
+  (concat (file-name-as-directory
+           user-emacs-directory)
+          "project-explorer/"))
+(defvar pe/cache-alist nil)
+
 (defvar pe/get-directory-tree-find-command
   "find . \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) ")
 
@@ -111,6 +119,13 @@ Set once, when the buffer is first created.")
 
 ;;; Functions
 
+(defun pe/cache-make-filename (filename)
+  (concat
+   (file-name-as-directory
+    dc/cache-dir)
+   (file-name-nondirectory
+    (make-backup-file-name filename))))
+
 (defun pe/get-directory-tree-simple (dir done-func)
   (cl-labels
       ((walker (dir)
@@ -159,6 +174,7 @@ Set once, when the buffer is first created.")
         (run-with-idle-timer pe/async-interval nil (pop pe/queue))
       (run-with-idle-timer pe/async-interval nil done-func root-level))
     level))
+(put 'pe/get-directory-tree-async 'pe/async t)
 
 (defun pe/path-to-list (path)
   (let* (( normalized-path
@@ -219,6 +235,10 @@ Set once, when the buffer is first created.")
                                                dir)))
                               (funcall done-func result))))
     ))
+(put 'pe/get-directory-tree-find 'pe/async t)
+
+(defun pe/get-directory-tree-find-cached (dir done-func)
+  )
 
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
