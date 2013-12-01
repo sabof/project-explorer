@@ -100,6 +100,7 @@ Called with no arguments, with the originating buffer as current.")
   "The project a project-explorer buffer belongs to.
 Set once, when the buffer is first created.")
 (defvar-local pe/data nil)
+(defvar-local pe/queue nil)
 (defvar-local pe/folds-open nil)
 (defvar-local pe/previous-directory nil)
 (defvar-local pe/helm-cache nil)
@@ -121,6 +122,39 @@ Set once, when the buffer is first created.")
                              file))
                          files)))))
     (funcall done-func (walker dir))))
+
+(defun pe/get-directory-tree-async (dir done-func)
+  (let (( buffer (current-buffer))
+        result )
+    (cl-labels
+        ((walker (dir)
+           (let (( files (cl-remove-if
+                          (lambda (file)
+                            (or (member file '("." ".."))
+                                (not (pe/file-interesting-p file))))
+                          (directory-files dir)))
+                 ( level
+                   (cons (file-name-nondirectory (directory-file-name dir))
+                         nil)))
+             (setcdr level
+                     (cl-loop for i = 0 then (1+ i)
+                              for file in files
+                              collecting
+                              (if (file-directory-p (concat dir file))
+                                  (let ((dir (concat dir file "/"))
+                                        (iter i))
+                                    (push (lambda ()
+                                            (with-current-buffer buffer
+                                              (setf (nth iter level) (walker dir))))
+                                          pe/queue)
+                                    iter)
+                                file)))
+             (if pe/queue
+                 (run-with-idle-timer 1 nil (pop pe/queue))
+               (funcall done-func result))
+             level)))
+      (setq result (walker dir))
+      )))
 
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
