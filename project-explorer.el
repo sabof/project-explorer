@@ -123,6 +123,7 @@ Set once, when the buffer is first created.")
                          files)))))
     (funcall done-func (walker dir))))
 
+(defvar pe/debug counter 0)
 (defun pe/get-directory-tree-async (dir done-func)
   (let (( buffer (current-buffer))
         result )
@@ -137,7 +138,7 @@ Set once, when the buffer is first created.")
                    (cons (file-name-nondirectory (directory-file-name dir))
                          nil)))
              (setcdr level
-                     (cl-loop for i = 0 then (1+ i)
+                     (cl-loop for i = 1 then (1+ i)
                               for file in files
                               collecting
                               (if (file-directory-p (concat dir file))
@@ -149,11 +150,12 @@ Set once, when the buffer is first created.")
                                           pe/queue)
                                     iter)
                                 file)))
-             (if pe/queue
-                 (run-with-idle-timer 1 nil (pop pe/queue))
-               (funcall done-func result))
+             ;; (if pe/queue
+             ;;     (run-with-idle-timer 1 nil (pop pe/queue))
+             ;;   (funcall done-func result))
              level)))
       (setq result (walker dir))
+      (setq pe/tmp result)
       )))
 
 (defun pe/get-project-explorer-buffers ()
