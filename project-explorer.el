@@ -204,10 +204,11 @@ Set once, when the buffer is first created.")
          ( output "")
          ( process
            (start-process "tree-find"
-                          buffer "bash" "-c" pe/get-directory-tree-find-command)))
+                          buffer "bash" "-c"
+                          pe/get-directory-tree-find-command)))
     (set-process-filter process
                         (lambda (process string)
-                          (setq output (concat output string))))
+                          (cl-callf concat output string)))
     (set-process-sentinel process
                           (lambda (&rest ignore)
                             (let (( result
