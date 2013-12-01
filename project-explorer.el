@@ -275,7 +275,9 @@ Set once, when the buffer is first created.")
 
 (cl-defun pe/revert-buffer (&rest ignore)
   (if pe/reverting
-      (cl-return-from pe/revert-buffer)
+      (progn
+        (message "Revert already in progress")
+        (cl-return-from pe/revert-buffer))
     (setq pe/reverting t))
   (let (( inhibit-read-only t)
         ( project-explorer-buffer (current-buffer))
