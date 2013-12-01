@@ -40,11 +40,11 @@
   :group 'convenience)
 
 (defvar pe/directory-files-function
-  'pe/get-directory-tree-async)
+  'pe/get-directory-tree-find)
 
 (defvar pe/async-interval 0.5)
 (defvar pe/get-directory-tree-find-command
-  "find . -mindepth 1 \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) ")
+  "find . \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) ")
 
 (defcustom pe/side 'left
   "On which side to display the sidebar."
@@ -163,16 +163,11 @@ Set once, when the buffer is first created.")
 (defun pe/path-to-list (path)
   (let* (( normalized-path
            (replace-regexp-in-string "\\\\" "/" path t t))
-         ( split-path (split-string normalized-path "/" t)))
-    (setq split-path
-          (mapcar (lambda (segment)
-                    (concat segment "/"))
-                  split-path))
-    (unless (string-match-p "/$" normalized-path)
-      (setcar (last split-path)
-              (substring (car (last split-path))
-                         0 (1- (length (car (last split-path)) )))))
-    split-path))
+         ( split-path (split-string normalized-path "/" t))
+         ( dir-path-p
+           (string-match-p "/$" normalized-path)))
+    (cons (if dir-path-p 'directory 'file)
+          split-path)))
 
 (defun pe/paths-to-tree (paths)
   (let* (( paths (mapcar 'pe/path-to-list paths))
@@ -181,26 +176,37 @@ Set once, when the buffer is first created.")
                         what))
          ( root (list nil))
          head)
-    (cl-dolist (path paths)
-      (setq head root)
-      (cl-dolist (segment path)
-        (setq head (or (cl-find segment
-                                (rest head)
-                                :test 'equal
-                                :key 'car)
-                       (funcall add-member
-                                (list segment)
-                                head)))))
+    (cl-loop for path-raw in paths
+             do
+             (cl-destructuring-bind (type &rest path) path-raw
+               (setq head root)
+               (cl-loop for segment in path
+                        for i = 0 then (1+ i)
+                        for is-last = (= (length path) (1+ i))
+                        do
+                        (setq head (or (cl-find segment
+                                                (rest head)
+                                                :test 'equal
+                                                :key 'car-safe)
+                                       (funcall add-member
+                                                (if (or (not is-last)
+                                                        (eq type 'directory))
+                                                    (list segment)
+                                                  segment)
+                                                head)
+                                       )))))
     (cadr root)
-    ;; (cdr root)
     ))
 
-(defun pe/find-output-to-tree (output)
-  ;; (setq tmp output)
-  (pe/paths-to-tree
-   (if (stringp output)
-       (split-string output "\n" t)
-     output)))
+(cl-defun pe/get-directory-tree-find (dir done-func)
+  (let* (( default-directory dir)
+         ( output (shell-command-to-string pe/get-directory-tree-find-command))
+         ( result (pe/paths-to-tree
+                   (split-string output "\n" t))))
+    (setcar result (file-name-nondirectory
+                    (directory-file-name
+                     dir)))
+    (funcall done-func result)))
 
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
