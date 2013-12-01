@@ -43,6 +43,8 @@
   'pe/get-directory-tree-async)
 
 (defvar pe/async-interval 0.5)
+(defvar pe/get-directory-tree-find-command
+  "find . -mindepth 1 \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) ")
 
 (defcustom pe/side 'left
   "On which side to display the sidebar."
@@ -125,10 +127,7 @@ Set once, when the buffer is first created.")
                          files)))))
     (funcall done-func (walker dir))))
 
-(defvar pe/debug-list nil)
-
 (defun pe/get-directory-tree-async (dir done-func &optional root-level)
-  (setq pe/debug-list)
   (let (( buffer (current-buffer))
         ( files (cl-remove-if
                  (lambda (file)
@@ -160,6 +159,48 @@ Set once, when the buffer is first created.")
         (run-with-idle-timer pe/async-interval nil (pop pe/queue))
       (run-with-idle-timer pe/async-interval nil done-func root-level))
     level))
+
+(defun pe/path-to-list (path)
+  (let* (( normalized-path
+           (replace-regexp-in-string "\\\\" "/" path t t))
+         ( split-path (split-string normalized-path "/" t)))
+    (setq split-path
+          (mapcar (lambda (segment)
+                    (concat segment "/"))
+                  split-path))
+    (unless (string-match-p "/$" normalized-path)
+      (setcar (last split-path)
+              (substring (car (last split-path))
+                         0 (1- (length (car (last split-path)) )))))
+    split-path))
+
+(defun pe/paths-to-tree (paths)
+  (let* (( paths (mapcar 'pe/path-to-list paths))
+         ( add-member (lambda (what where)
+                        (setcdr where (cons what (cdr where)))
+                        what))
+         ( root (list nil))
+         head)
+    (cl-dolist (path paths)
+      (setq head root)
+      (cl-dolist (segment path)
+        (setq head (or (cl-find segment
+                                (rest head)
+                                :test 'equal
+                                :key 'car)
+                       (funcall add-member
+                                (list segment)
+                                head)))))
+    (cadr root)
+    ;; (cdr root)
+    ))
+
+(defun pe/find-output-to-tree (output)
+  ;; (setq tmp output)
+  (pe/paths-to-tree
+   (if (stringp output)
+       (split-string output "\n" t)
+     output)))
 
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
