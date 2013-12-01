@@ -200,13 +200,24 @@ Set once, when the buffer is first created.")
 
 (cl-defun pe/get-directory-tree-find (dir done-func)
   (let* (( default-directory dir)
-         ( output (shell-command-to-string pe/get-directory-tree-find-command))
-         ( result (pe/paths-to-tree
-                   (split-string output "\n" t))))
-    (setcar result (file-name-nondirectory
-                    (directory-file-name
-                     dir)))
-    (funcall done-func result)))
+         ( buffer (current-buffer))
+         ( output "")
+         ( process
+           (start-process "tree-find"
+                          buffer "bash" "-c" pe/get-directory-tree-find-command)))
+    (set-process-filter process
+                        (lambda (process string)
+                          (setq output (concat output string))))
+    (set-process-sentinel process
+                          (lambda (&rest ignore)
+                            (let (( result
+                                    (pe/paths-to-tree
+                                     (split-string output "\n" t))))
+                              (setcar result (file-name-nondirectory
+                                              (directory-file-name
+                                               dir)))
+                              (funcall done-func result))))
+    ))
 
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
