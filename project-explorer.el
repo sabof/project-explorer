@@ -40,7 +40,7 @@
   :group 'convenience)
 
 (defvar pe/directory-files-function
-  'pe/get-directory-tree-simple)
+  'pe/get-directory-tree-async)
 
 (defcustom pe/side 'left
   "On which side to display the sidebar."
@@ -123,40 +123,40 @@ Set once, when the buffer is first created.")
                          files)))))
     (funcall done-func (walker dir))))
 
-(defvar pe/debug counter 0)
-(defun pe/get-directory-tree-async (dir done-func)
+(defvar pe/debug-list nil)
+
+(defun pe/get-directory-tree-async (dir done-func &optional root-level)
+  (setq pe/debug-list)
   (let (( buffer (current-buffer))
-        result )
-    (cl-labels
-        ((walker (dir)
-           (let (( files (cl-remove-if
-                          (lambda (file)
-                            (or (member file '("." ".."))
-                                (not (pe/file-interesting-p file))))
-                          (directory-files dir)))
-                 ( level
-                   (cons (file-name-nondirectory (directory-file-name dir))
-                         nil)))
-             (setcdr level
-                     (cl-loop for i = 1 then (1+ i)
-                              for file in files
-                              collecting
-                              (if (file-directory-p (concat dir file))
-                                  (let ((dir (concat dir file "/"))
-                                        (iter i))
-                                    (push (lambda ()
-                                            (with-current-buffer buffer
-                                              (setf (nth iter level) (walker dir))))
-                                          pe/queue)
-                                    iter)
-                                file)))
-             ;; (if pe/queue
-             ;;     (run-with-idle-timer 1 nil (pop pe/queue))
-             ;;   (funcall done-func result))
-             level)))
-      (setq result (walker dir))
-      (setq pe/tmp result)
-      )))
+        ( files (cl-remove-if
+                 (lambda (file)
+                   (or (member file '("." ".."))
+                       (not (pe/file-interesting-p file))))
+                 (directory-files dir)))
+        ( level
+          (cons (file-name-nondirectory (directory-file-name dir))
+                nil)))
+    (setq root-level (or root-level level))
+    (setcdr level
+            (cl-loop for i = 1 then (1+ i)
+                     for file in files
+                     collecting
+                     (if (file-directory-p (concat dir file))
+                         (let ((dir (concat dir file "/"))
+                               (iter i))
+                           (push (lambda ()
+                                   (with-current-buffer buffer
+                                     (setf (nth iter level)
+                                           (pe/get-directory-tree-async
+                                            dir done-func root-level))
+                                     (push level pe/debug-list)))
+                                 pe/queue)
+                           iter)
+                       file)))
+    (if pe/queue
+        (run-with-idle-timer 1 nil (pop pe/queue))
+      (run-with-idle-timer 1 nil done-func root-level))
+    level))
 
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
