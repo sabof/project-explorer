@@ -42,6 +42,8 @@
 (defvar pe/directory-files-function
   'pe/get-directory-tree-async)
 
+(defvar pe/async-interval 0.5)
+
 (defcustom pe/side 'left
   "On which side to display the sidebar."
   :group 'project-explorer
@@ -145,17 +147,18 @@ Set once, when the buffer is first created.")
                          (let ((dir (concat dir file "/"))
                                (iter i))
                            (push (lambda ()
-                                   (with-current-buffer buffer
-                                     (setf (nth iter level)
-                                           (pe/get-directory-tree-async
-                                            dir done-func root-level))
-                                     (push level pe/debug-list)))
+                                   (when (buffer-live-p buffer)
+                                     (with-current-buffer buffer
+                                       (setf (nth iter level)
+                                             (pe/get-directory-tree-async
+                                              dir done-func root-level))
+                                       (push level pe/debug-list))))
                                  pe/queue)
                            iter)
                        file)))
     (if pe/queue
-        (run-with-idle-timer 1 nil (pop pe/queue))
-      (run-with-idle-timer 1 nil done-func root-level))
+        (run-with-idle-timer pe/async-interval nil (pop pe/queue))
+      (run-with-idle-timer pe/async-interval nil done-func root-level))
     level))
 
 (defun pe/get-project-explorer-buffers ()
@@ -199,6 +202,7 @@ Set once, when the buffer is first created.")
             (pe/get-filename)))
         ( window-start (window-start))
         ( starting-column (current-column))
+        ( buffer (current-buffer))
         ( user-reverting (eq this-command 'revert-buffer)))
     (unless user-reverting
       (erase-buffer)
@@ -209,7 +213,7 @@ Set once, when the buffer is first created.")
              (lambda (data)
                (pe/data-ready-function
                 data
-                (current-buffer)
+                buffer
                 starting-name
                 window-start
                 starting-column
