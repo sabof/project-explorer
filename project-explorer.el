@@ -116,6 +116,7 @@ Set once, when the buffer is first created.")
 (defvar-local pe/folds-open nil)
 (defvar-local pe/previous-directory nil)
 (defvar-local pe/helm-cache nil)
+(defvar-local pe/reverting nil)
 
 ;;; Functions
 
@@ -268,10 +269,14 @@ Set once, when the buffer is first created.")
           (move-to-column starting-column))))
     (setq pe/previous-directory default-directory)
     (setq pe/helm-cache)
+    (setq pe/reverting)
     (when user-reverting
       (message "Refresh complete"))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
+  (if pe/reverting
+      (cl-return-from pe/revert-buffer)
+    (setq pe/reverting t))
   (let (( inhibit-read-only t)
         ( project-explorer-buffer (current-buffer))
         ( starting-name
