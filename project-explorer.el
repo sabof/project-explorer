@@ -43,7 +43,7 @@
   'pe/get-directory-tree-find)
 
 (defvar pe/async-interval 0.5)
-(defvar pe/use-cache t)
+(defvar pe/cache-enabled t)
 (defvar pe/auto-refresh-cache t)
 (defvar pe/cache-dir
   (concat (file-name-as-directory
@@ -725,10 +725,14 @@ Set once, when the buffer is first created.")
 (define-derived-mode project-explorer-mode special-mode
   "Tree find"
   "Display results of find as a folding tree"
-  (let ((inhibit-read-only t))
-    (erase-buffer)
-    (delete-all-overlays)
-    (insert "Searching for files..."))
+  (if (and pe/cache-enabled
+           nil                          ; cached data esists
+           )
+      nil                               ; get cache
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (delete-all-overlays)
+      (insert "Searching for files...")))
   (setq-local revert-buffer-function
               'pe/revert-buffer)
   (setq-local tab-width 2)
