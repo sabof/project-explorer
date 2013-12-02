@@ -248,9 +248,9 @@ Set once, when the buffer is first created.")
   (with-current-buffer buffer
     (let* (( window-start (window-start))
            ( starting-column (current-column))
-           ( existing-buffer pe/data)
+           ( used-buffer pe/data)
            ( starting-name
-             (and existing-buffer
+             (and used-buffer
                   (let ((\default-directory
                          (or pe/previous-directory
                              default-directory)))
@@ -277,14 +277,15 @@ Set once, when the buffer is first created.")
         (pe/folds-restore)
         (set-window-start nil window-start)
 
-        (when starting-name
-          (when (pe/goto-file starting-name nil t)
-            (move-to-column starting-column))))
+        (and starting-name
+             (pe/goto-file starting-name nil t)
+             (move-to-column starting-column)))
 
-      (setq pe/previous-directory default-directory)
-      (setq pe/helm-cache)
-      (setq pe/reverting)
-      (when (and existing-buffer (not switching))
+      (setq pe/previous-directory default-directory
+            pe/helm-cache nil
+            pe/reverting nil)
+
+      (when (and used-buffer (not switching))
         (message "Refresh complete")))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
