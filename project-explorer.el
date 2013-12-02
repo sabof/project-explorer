@@ -244,67 +244,56 @@ Set once, when the buffer is first created.")
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
 
-(defun pe/data-ready-function
-    (data buffer starting-name window-start starting-column user-reverting)
-  (with-current-buffer
-      buffer
-    (setq pe/data data)
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (delete-all-overlays)
-      (pe/print-indented-tree
-       (funcall (if pe/inline-folders
-                    'pe/compress-tree
-                  'identity)
-                (pe/sort data)))
-      (font-lock-fontify-buffer)
-      (goto-char (point-min)))
-    (if (not (string-equal pe/previous-directory
-                           default-directory))
-        (pe/folds-reset)
-      (pe/folds-restore)
-      (set-window-start nil window-start)
-      (when starting-name
-        (when (pe/goto-file starting-name nil t)
-          (move-to-column starting-column))))
-    (setq pe/previous-directory default-directory)
-    (setq pe/helm-cache)
-    (setq pe/reverting)
-    (when user-reverting
-      (message "Refresh complete"))))
+(defun pe/set-tree (buffer data)
+  (with-current-buffer buffer
+    (let* (( window-start (window-start))
+           ( starting-column (current-column))
+           ( existing-buffer pe/data)
+           ( starting-name
+             (and existing-buffer
+                  (let ((\default-directory
+                         (or pe/previous-directory
+                             default-directory)))
+                    (pe/get-filename))))
+           ( switching
+             (not (string-equal pe/previous-directory
+                                default-directory))))
+
+      (setq pe/data data)
+
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (delete-all-overlays)
+        (pe/print-indented-tree
+         (funcall (if pe/inline-folders
+                      'pe/compress-tree
+                    'identity)
+                  (pe/sort data)))
+        (font-lock-fontify-buffer)
+        (goto-char (point-min)))
+
+      (if switching
+          (pe/folds-reset)
+        (pe/folds-restore)
+        (set-window-start nil window-start)
+
+        (when starting-name
+          (when (pe/goto-file starting-name nil t)
+            (move-to-column starting-column))))
+
+      (setq pe/previous-directory default-directory)
+      (setq pe/helm-cache)
+      (setq pe/reverting)
+      (when (and existing-buffer (not switching))
+        (message "Refresh complete")))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
   (if pe/reverting
-      (progn
-        (message "Revert already in progress")
-        (cl-return-from pe/revert-buffer))
+      (user-error "Revert already in progress")
     (setq pe/reverting t))
-  (let (( inhibit-read-only t)
-        ( project-explorer-buffer (current-buffer))
-        ( starting-name
-          (let ((\default-directory
-                 (or pe/previous-directory
-                     default-directory)))
-            (pe/get-filename)))
-        ( window-start (window-start))
-        ( starting-column (current-column))
-        ( buffer (current-buffer))
-        ( user-reverting (eq this-command 'revert-buffer)))
-    (unless user-reverting
-      (erase-buffer)
-      (delete-all-overlays)
-      (insert "Searching for files..."))
-    (funcall pe/directory-files-function
-             default-directory
-             (lambda (data)
-               (pe/data-ready-function
-                data
-                buffer
-                starting-name
-                window-start
-                starting-column
-                user-reverting)))
-    ))
+  (funcall pe/directory-files-function
+           default-directory
+           (apply-partially 'pe/set-tree (current-buffer))))
 
 (defun pe/file-interesting-p (name)
   (if pe/omit-regex
@@ -735,6 +724,10 @@ Set once, when the buffer is first created.")
 (define-derived-mode project-explorer-mode special-mode
   "Tree find"
   "Display results of find as a folding tree"
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    (delete-all-overlays)
+    (insert "Searching for files..."))
   (setq-local revert-buffer-function
               'pe/revert-buffer)
   (setq-local tab-width 2)
