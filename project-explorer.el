@@ -334,6 +334,16 @@ Set once, when the buffer is first created.")
 
 ;;; * Text
 
+(defun pe/file-p ()
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (looking-at-p ".*[^/]$")))
+
+(defun pe/directory-p ()
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (looking-at-p ".*/$")))
+
 (cl-defun pe/print-indented-tree
     (branch &optional (depth -1))
   (let (start)
