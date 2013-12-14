@@ -117,6 +117,7 @@ Set once, when the buffer is first created.")
 (defvar-local pe/previous-directory nil)
 (defvar-local pe/helm-cache nil)
 (defvar-local pe/reverting nil)
+(defvar-local pe/after-revert-function nil)
 
 ;;; Functions
 
@@ -286,6 +287,10 @@ Set once, when the buffer is first created.")
             pe/helm-cache nil
             pe/reverting nil)
 
+      (when pe/after-revert-function
+        (funcall pe/after-revert-function)
+        (setq pe/after-revert-function))
+
       (when (and used-buffer (not switching))
         (message "Refresh complete")))))
 
@@ -393,8 +398,8 @@ Set once, when the buffer is first created.")
   (let ((old-folds pe/folds-open))
     (pe/folds-reset)
     (cl-dolist (fold old-folds)
-      (pe/goto-file fold nil t)
-      (pe/unfold-internal))))
+      (when (pe/goto-file fold nil t)
+        (pe/unfold-internal)))))
 
 ;;; PE/FOLDS EOF
 
@@ -568,25 +573,6 @@ Set once, when the buffer is first created.")
                               (1- indentation))
                              nil t)
          (goto-char (match-end 1)))))
-
-(defun pe/get-filename ()
-  "Return the filename at point."
-  (save-excursion
-    (let* (( get-line-text
-             (lambda ()
-               (goto-char (line-beginning-position))
-               (skip-chars-forward "\t ")
-               (buffer-substring-no-properties
-                (point) (line-end-position))))
-           ( result
-             (funcall get-line-text)))
-      (while (pe/up-element-internal)
-        (setq result (concat (funcall get-line-text)
-                             result)))
-      (setq result (expand-file-name result))
-      (when (file-directory-p result)
-        (setq result (file-name-as-directory result)))
-      result)))
 
 (defun pe/get-filename ()
   "Return the filename at point."
@@ -1030,3 +1016,8 @@ Makes adjustments for folding."
 
 (provide 'project-explorer)
 ;;; project-explorer.el ends here
+
+;; Local Variables:
+;; eval: (orgstruct-mode)
+;; orgstruct-heading-prefix-regexp: "^;;; \\*"
+;; End:
