@@ -330,7 +330,7 @@ Set once, when the buffer is first created.")
     (pe/folds-reset)
     (cl-dolist (fold old-folds)
       (when (pe/goto-file fold nil t)
-        (pe/unfold-internal)))))
+        (pe/unfold-prog)))))
 
 ;;; * Text
 
@@ -434,7 +434,7 @@ Makes adjustments for folding."
     (pe/goto-file file-name))
   (save-excursion
     (when (pe/up-element-internal)
-      (pe/unfold-internal))))
+      (pe/unfold-prog))))
 
 ;;; ** Folding
 
@@ -459,7 +459,7 @@ Makes adjustments for folding."
               (priority ,priority)))
     ov))
 
-(cl-defun pe/unfold-internal ()
+(cl-defun pe/unfold-prog ()
   (pe/folds-add (pe/get-filename))
   (save-excursion
     (while (let* (( line-end (line-end-position))
@@ -547,21 +547,7 @@ inside a folded region. Will also return t when after a folding overlay."
     (goto-char (line-beginning-position))
     (let (( end (save-excursion (pe/forward-element))))
       (while (re-search-forward "/$" end t)
-        (pe/unfold-internal)))))
-
-(defun pe/unfold (&optional expanded)
-  (interactive "P")
-  (let (( line-beginning
-          (es-total-line-beginning-position)))
-    (when (/= (line-number-at-pos)
-              (line-number-at-pos
-               line-beginning))
-      (goto-char line-beginning)
-      (goto-char (1- (line-end-position)))))
-  (cond ( expanded
-          (pe/unfold-descendants))
-        ( (not (pe/folded-p)))
-        ( t (pe/unfold-internal))))
+        (pe/unfold-prog)))))
 
 ;;; ** Navigation
 
@@ -727,6 +713,24 @@ Joined directories will be traversed as one."
     (pe/show-buffer
      (find-file-noselect file-name))))
 
+(defun pe/unfold (&optional expanded)
+  "For interactive use only. Use `pe/unfold-prog' in code."
+  (interactive "P")
+  (let (( line-beginning
+          (es-total-line-beginning-position)))
+    (when (/= (line-number-at-pos)
+              (line-number-at-pos
+               line-beginning))
+      (goto-char line-beginning)
+      ;; Putting the cursor right at the beginning of a fold, may cause
+      ;; unexpected behaviour. "-1" makes it less likely.
+      (goto-char (1- (line-end-position)))
+      ))
+  (cond ( expanded
+          (pe/unfold-descendants))
+        ( (not (pe/folded-p)))
+        ( t (pe/unfold-prog))))
+
 (defun pe/tab (&optional arg)
   "Toggle folding at point.
 With a prefix argument, unfold all children."
@@ -776,7 +780,7 @@ With a prefix argument, unfold all children."
 (defun pe/occur-mode-find-occurrence-hook ()
   (save-excursion
     (pe/up-element-internal)
-    (pe/unfold-internal)))
+    (pe/unfold-prog)))
 
 ;;; * Main entry points
 ;;; * Window managment
