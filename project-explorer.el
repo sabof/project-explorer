@@ -322,12 +322,9 @@ Set once, when the buffer is first created.")
       (push parent pe/folds-open))
     removed-folds))
 
-(defun pe/folds-reset ()
-  (setq pe/folds-open))
-
 (defun pe/folds-restore ()
   (let ((old-folds pe/folds-open))
-    (pe/folds-reset)
+    (setq pe/folds-open nil)
     (cl-dolist (fold old-folds)
       (when (pe/goto-file fold nil t)
         (pe/unfold-prog)))))
@@ -925,7 +922,7 @@ With a prefix argument, unfold all children."
         (goto-char (point-min)))
 
       (if switching
-          (pe/folds-reset)
+          (setq pe/folds-open nil)
         (pe/folds-restore)
         (set-window-start nil window-start)
 
