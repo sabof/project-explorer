@@ -351,15 +351,6 @@ Set once, when the buffer is first created.")
     (skip-chars-forward "\t")
     (point)))
 
-(defun pe/up-element-internal ()
-  (let (( indentation (pe/current-indnetation)))
-    (and (cl-plusp indentation)
-         (re-search-backward (format
-                              "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
-                              (1- indentation))
-                             nil t)
-         (goto-char (match-end 1)))))
-
 (defun pe/get-filename ()
   "Return the filename at point."
   (save-excursion
@@ -429,10 +420,6 @@ Set once, when the buffer is first created.")
       (goto-char init-pos)
       nil)))
 
-(defun pe/goto-top ()
-  (interactive)
-  (re-search-backward "^[^\t]" nil t))
-
 (defun pe/user-get-filename ()
   "Return the aboslute file-name of the file at point.
 Makes adjustments for folding."
@@ -493,6 +480,27 @@ or if the cursor is inside a folded region."
     (cl-some (lambda (ov)
                (overlay-get ov 'is-pe-hider))
              ovs)))
+
+(defun pe/make-hiding-overlay (from to)
+  (let* (( ov (make-overlay from to))
+         line-beginning
+         ( indent (save-excursion
+                    (goto-char from)
+                    (setq line-beginning
+                          (goto-char (line-beginning-position)))
+                    (skip-chars-forward "\t")
+                    (- (point) line-beginning)))
+         ( priority (- 100 indent)))
+    (mapcar (apply-partially 'apply 'overlay-put ov)
+            `((isearch-open-invisible-temporary
+               pe/isearch-show-temporarily)
+              (isearch-open-invisible pe/isearch-show)
+              (invisible t)
+              (display "...")
+              (is-pe-hider t)
+              (evaporate t)
+              (priority ,priority)))
+    ov))
 
 (defun pe/fold-this-line ()
   (let* (( indent
@@ -580,7 +588,19 @@ or if the cursor is inside a folded region."
   (setq arg (or arg 1))
   (pe/forward-element (- arg)))
 
-;;; ** Interactive wrappers
+(defun pe/up-element-internal ()
+  (let (( indentation (pe/current-indnetation)))
+    (and (cl-plusp indentation)
+         (re-search-backward (format
+                              "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
+                              (1- indentation))
+                             nil t)
+         (goto-char (match-end 1)))))
+
+(defun pe/goto-top ()
+  (interactive)
+  (re-search-backward "^[^\t]" nil t))
+
 
 (defun pe/up-element ()
   "Goto the parent element of the file at point.
@@ -682,13 +702,6 @@ Joined directories will be traversed as one."
       (message "%s" file-name))
     (kill-new file-name)))
 
-(defun pe/quit ()
-  (interactive)
-  (let ((window (selected-window)))
-    (quit-window)
-    (when (window-live-p window)
-      (delete-window))))
-
 (defun pe/middle-click (event)
   (interactive "e")
   (mouse-set-point event)
@@ -736,6 +749,7 @@ With a prefix argument, unfold all children."
             (point))
           )))
 
+;;; ** Isearch
 (defun pe/isearch-show (ov)
   (save-excursion
     (goto-char (overlay-start ov))
@@ -747,6 +761,7 @@ With a prefix argument, unfold all children."
   (overlay-put ov 'invisible do-hide))
 
 
+;;; ** Occur
 (defadvice occur-mode (after pe/try-matching-tab-width activate)
   (and (boundp 'buf-name)
        (boundp 'bufs)
@@ -765,6 +780,13 @@ With a prefix argument, unfold all children."
 
 ;;; * Main entry points
 ;;; * Window managment
+(defun pe/quit ()
+  (interactive)
+  (let ((window (selected-window)))
+    (quit-window)
+    (when (window-live-p window)
+      (delete-window))))
+
 (defun pe/get-current-project-explorer-buffer ()
   (let (( project-root (funcall pe/project-root-function))
         ( project-explorer-buffers (pe/get-project-explorer-buffers)))
@@ -887,27 +909,6 @@ With a prefix argument, unfold all children."
   (funcall pe/directory-files-function
            default-directory
            (apply-partially 'pe/set-tree (current-buffer))))
-
-(defun pe/make-hiding-overlay (from to)
-  (let* (( ov (make-overlay from to))
-         line-beginning
-         ( indent (save-excursion
-                    (goto-char from)
-                    (setq line-beginning
-                          (goto-char (line-beginning-position)))
-                    (skip-chars-forward "\t")
-                    (- (point) line-beginning)))
-         ( priority (- 100 indent)))
-    (mapcar (apply-partially 'apply 'overlay-put ov)
-            `((isearch-open-invisible-temporary
-               pe/isearch-show-temporarily)
-              (isearch-open-invisible pe/isearch-show)
-              (invisible t)
-              (display "...")
-              (is-pe-hider t)
-              (evaporate t)
-              (priority ,priority)))
-    ov))
 
 (define-derived-mode project-explorer-mode special-mode
     "Tree find"
