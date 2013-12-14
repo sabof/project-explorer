@@ -87,12 +87,12 @@ Directories matching this regular expression won't be traversed."
           (string :tag "Files matching this regex won't be shown")))
 
 (defface pe/file-face
-  '((t (:inherit default)))
+    '((t (:inherit default)))
   "Face used for regular files in project-explorer sidebar."
   :group 'project-explorer)
 
 (defface pe/directory-face
-  '((t (:inherit dired-directory)))
+    '((t (:inherit dired-directory)))
   "Face used for directories in project-explorer sidebar."
   :group 'project-explorer)
 
@@ -164,6 +164,29 @@ Set once, when the buffer is first created.")
     dc/cache-dir)
    (file-name-nondirectory
     (make-backup-file-name filename))))
+
+(cl-defun pe/get-directory-tree-find (dir done-func)
+  (let* (( default-directory dir)
+         ( buffer (current-buffer))
+         ( output "")
+         ( process
+           (start-process "tree-find"
+                          buffer "bash" "-c"
+                          pe/get-directory-tree-find-command)))
+    (set-process-filter process
+                        (lambda (process string)
+                          (cl-callf concat output string)))
+    (set-process-sentinel process
+                          (lambda (&rest ignore)
+                            (let (( result
+                                    (pe/paths-to-tree
+                                     (split-string output "\n" t))))
+                              (setcar result (file-name-nondirectory
+                                              (directory-file-name
+                                               dir)))
+                              (funcall done-func result))))
+    ))
+(put 'pe/get-directory-tree-find 'pe/async t)
 
 (defun pe/get-directory-tree-simple (dir done-func)
   (cl-labels
@@ -297,7 +320,27 @@ Set once, when the buffer is first created.")
       (when (pe/goto-file fold nil t)
         (pe/unfold-internal)))))
 
-;;; * Text Layer
+;;; * Text
+
+(cl-defun pe/print-indented-tree
+    (branch &optional (depth -1))
+  (let (start)
+    (cond ( (stringp branch)
+            (insert (make-string depth ?\t)
+                    branch
+                    ?\n))
+          ( t (when (>= depth 0)
+                (insert (make-string depth ?\t)
+                        (car branch) "/\n")
+                (setq start (point)))
+              (cl-dolist (item (cdr branch))
+                (pe/print-indented-tree item (1+ depth)))
+              (when (and start (> (point) start))
+                ;; (message "ran %s %s" start (point))
+                (pe/make-hiding-overlay
+                 (1- start) (1- (point))))
+              ))))
+
 (defun pe/current-indnetation ()
   (- (pe/tab-ending)
      (line-beginning-position)))
@@ -333,6 +376,7 @@ Set once, when the buffer is first created.")
         (when (file-directory-p result)
           (setq result (file-name-as-directory result)))
         result))))
+
 (cl-defun pe/goto-file
     (file-name &optional on-each-semgent-function use-best-match)
   (when (string-equal (expand-file-name file-name) default-directory)
@@ -389,7 +433,22 @@ Set once, when the buffer is first created.")
   (interactive)
   (re-search-backward "^[^\t]" nil t))
 
+(defun pe/user-get-filename ()
+  "Return the aboslute file-name of the file at point.
+Makes adjustments for folding."
+  (save-excursion
+    (goto-char (es-total-line-beginning))
+    (pe/get-filename)))
+
+(defun pe/show-file-internal (&optional file-name)
+  (when file-name
+    (pe/goto-file file-name))
+  (save-excursion
+    (when (pe/up-element-internal)
+      (pe/unfold-internal))))
+
 ;;; ** Folding
+
 (defun pe/fold-with-descentants (root descendant-list)
   (save-excursion
     (let* ((root-point (save-excursion (pe/goto-file root)))
@@ -615,6 +674,14 @@ Joined directories will be traversed as one."
   (helm :sources '(pe/helm-source)))
 
 ;;; * User functions
+
+(defun pe/copy-file-name-as-kill ()
+  (interactive)
+  (let ((file-name (pe/user-get-filename)))
+    (when (called-interactively-p 'any)
+      (message "%s" file-name))
+    (kill-new file-name)))
+
 (defun pe/quit ()
   (interactive)
   (let ((window (selected-window)))
@@ -696,37 +763,76 @@ With a prefix argument, unfold all children."
     (pe/up-element-internal)
     (pe/unfold-internal)))
 
-;;; * Other
-(cl-defun pe/get-directory-tree-find (dir done-func)
-  (let* (( default-directory dir)
-         ( buffer (current-buffer))
-         ( output "")
-         ( process
-           (start-process "tree-find"
-                          buffer "bash" "-c"
-                          pe/get-directory-tree-find-command)))
-    (set-process-filter process
-                        (lambda (process string)
-                          (cl-callf concat output string)))
-    (set-process-sentinel process
-                          (lambda (&rest ignore)
-                            (let (( result
-                                    (pe/paths-to-tree
-                                     (split-string output "\n" t))))
-                              (setcar result (file-name-nondirectory
-                                              (directory-file-name
-                                               dir)))
-                              (funcall done-func result))))
-    ))
-(put 'pe/get-directory-tree-find 'pe/async t)
+;;; * Main entry points
+;;; * Window managment
+(defun pe/get-current-project-explorer-buffer ()
+  (let (( project-root (funcall pe/project-root-function))
+        ( project-explorer-buffers (pe/get-project-explorer-buffers)))
+    (cl-find project-root
+             project-explorer-buffers
+             :key (lambda (project-explorer-buffer)
+                    (with-current-buffer project-explorer-buffer
+                      pe/project-root))
+             :test 'string-equal)))
 
-(defun pe/get-directory-tree-find-cached (dir done-func)
-  )
+
+(defun pe/show-buffer-in-side-window (buffer)
+  (let* (( project-explorer-buffers
+           (pe/get-project-explorer-buffers))
+         ( --clean-up--
+           (mapc (lambda (win)
+                   (and (memq (window-buffer win) project-explorer-buffers)
+                        (not (window-parameter win 'window-side))
+                        (eq t (window-deletable-p win))
+                        (delete-window win)))
+                 (window-list)))
+         ( existing-window
+           (cl-find-if
+            (lambda (window)
+              (and (memq (window-buffer window) project-explorer-buffers)
+                   (window-parameter window 'window-side)))
+            (window-list)))
+         ( window
+           (or existing-window
+               (display-buffer-in-side-window
+                buffer
+                `((side . ,pe/side)
+                  )))))
+    (when existing-window
+      (setf (window-dedicated-p window) nil
+            (window-buffer window) buffer))
+    (setf (window-dedicated-p window) t)
+    (unless existing-window
+      (es-set-window-body-width window pe/width))
+    (select-window window)
+    window))
+
+(defun pe/show-buffer (buffer)
+  (let* (( non-side-windows
+           (cl-remove-if
+            (lambda (win)
+              (window-parameter win 'window-side))
+            (window-list)))
+         ( existing
+           (cl-find-if (lambda (win)
+                         (not (window-dedicated-p win)))
+                       non-side-windows))
+         ( window
+           (or existing
+               (split-window (car non-side-windows)
+                             nil 'left))))
+    (select-window window)
+    (setf (window-buffer window) buffer)))
 
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
 
+;;; * Other
+(defun pe/get-directory-tree-find-cached (dir done-func)
+  )
+
 (defun pe/set-tree (buffer data)
+  "Called once data retrieval is complete."
   (with-current-buffer buffer
     (let* (( window-start (window-start))
            ( starting-column (current-column))
@@ -782,25 +888,6 @@ With a prefix argument, unfold all children."
            default-directory
            (apply-partially 'pe/set-tree (current-buffer))))
 
-(cl-defun pe/print-indented-tree
-    (branch &optional (depth -1))
-  (let (start)
-    (cond ( (stringp branch)
-            (insert (make-string depth ?\t)
-                    branch
-                    ?\n))
-          ( t (when (>= depth 0)
-                (insert (make-string depth ?\t)
-                        (car branch) "/\n")
-                (setq start (point)))
-              (cl-dolist (item (cdr branch))
-                (pe/print-indented-tree item (1+ depth)))
-              (when (and start (> (point) start))
-                ;; (message "ran %s %s" start (point))
-                (pe/make-hiding-overlay
-                 (1- start) (1- (point))))
-              ))))
-
 (defun pe/make-hiding-overlay (from to)
   (let* (( ov (make-overlay from to))
          line-beginning
@@ -822,26 +909,9 @@ With a prefix argument, unfold all children."
               (priority ,priority)))
     ov))
 
-(defun pe/get-current-project-explorer-buffer ()
-  (let (( project-root (funcall pe/project-root-function))
-        ( project-explorer-buffers (pe/get-project-explorer-buffers)))
-    (cl-find project-root
-             project-explorer-buffers
-             :key (lambda (project-explorer-buffer)
-                    (with-current-buffer project-explorer-buffer
-                      pe/project-root))
-             :test 'string-equal)))
-
-(defun pe/copy-file-name-as-kill ()
-  (interactive)
-  (let ((file-name (pe/user-get-filename)))
-    (when (called-interactively-p 'any)
-      (message "%s" file-name))
-    (kill-new file-name)))
-
 (define-derived-mode project-explorer-mode special-mode
-  "Tree find"
-  "Display results of find as a folding tree"
+    "Tree find"
+    "Display results of find as a folding tree"
   (if (and pe/cache-enabled
            nil                          ; cached data esists
            )
@@ -886,61 +956,6 @@ With a prefix argument, unfold all children."
   (font-lock-add-keywords
    'project-explorer-mode '(("^.+/$" (0 'pe/directory-face append)))))
 
-(defun pe/show-file-internal (&optional file-name)
-  (when file-name
-    (pe/goto-file file-name))
-  (save-excursion
-    (when (pe/up-element-internal)
-      (pe/unfold-internal))))
-
-(defun pe/show-buffer-in-side-window (buffer)
-  (let* (( project-explorer-buffers
-           (pe/get-project-explorer-buffers))
-         ( --clean-up--
-           (mapc (lambda (win)
-                   (and (memq (window-buffer win) project-explorer-buffers)
-                        (not (window-parameter win 'window-side))
-                        (eq t (window-deletable-p win))
-                        (delete-window win)))
-                 (window-list)))
-         ( existing-window
-           (cl-find-if
-            (lambda (window)
-              (and (memq (window-buffer window) project-explorer-buffers)
-                   (window-parameter window 'window-side)))
-            (window-list)))
-         ( window
-           (or existing-window
-               (display-buffer-in-side-window
-                buffer
-                `((side . ,pe/side)
-                  )))))
-    (when existing-window
-      (setf (window-dedicated-p window) nil
-            (window-buffer window) buffer))
-    (setf (window-dedicated-p window) t)
-    (unless existing-window
-      (es-set-window-body-width window pe/width))
-    (select-window window)
-    window))
-
-(defun pe/show-buffer (buffer)
-  (let* (( non-side-windows
-           (cl-remove-if
-            (lambda (win)
-              (window-parameter win 'window-side))
-            (window-list)))
-         ( existing
-           (cl-find-if (lambda (win)
-                         (not (window-dedicated-p win)))
-                       non-side-windows))
-         ( window
-           (or existing
-               (split-window (car non-side-windows)
-                             nil 'left))))
-    (select-window window)
-    (setf (window-buffer window) buffer)))
-
 ;;; Interface
 
 (defun pe/show-file (&optional file-name)
@@ -975,13 +990,6 @@ With a prefix argument, unfold all children."
   (setq dir (file-name-as-directory dir)
         default-directory (expand-file-name dir))
   (revert-buffer))
-
-(defun pe/user-get-filename ()
-  "Return the aboslute file-name of the file at point.
-Makes adjustments for folding."
-  (save-excursion
-    (goto-char (es-total-line-beginning))
-    (pe/get-filename)))
 
 (cl-defun project-explorer-open ()
   "Show the `project-explorer-buffer', of the current project."
