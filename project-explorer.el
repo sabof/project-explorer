@@ -144,15 +144,16 @@ Set once, when the buffer is first created.")
     (funcall done-func (walker dir))))
 
 (defun pe/get-directory-tree-async (dir done-func &optional root-level)
-  (let (( buffer (current-buffer))
-        ( files (cl-remove-if
-                 (lambda (file)
-                   (or (member file '("." ".."))
-                       (not (pe/file-interesting-p file))))
-                 (directory-files dir)))
-        ( level
-          (cons (file-name-nondirectory (directory-file-name dir))
-                nil)))
+  (let* (( inhibit-quit t)
+         ( buffer (current-buffer))
+         ( files (cl-remove-if
+                  (lambda (file)
+                    (or (member file '("." ".."))
+                        (not (pe/file-interesting-p file))))
+                  (directory-files dir)))
+         ( level
+           (cons (file-name-nondirectory (directory-file-name dir))
+                 nil)))
     (setq root-level (or root-level level))
     (setcdr level
             (cl-loop for i = 1 then (1+ i)
