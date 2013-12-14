@@ -461,12 +461,14 @@ Makes adjustments for folding."
 
 (cl-defun pe/unfold-prog ()
   "Register current line as opened, and delete all overlays that might be hiding it.
-Does nothing on an open line."
-  (unless (and (pe/folded-p)
-               (looking-at ".*/\n"))
+Does nothing on an open line, or on a line that isn't a directory."
+  ;; FIXME: It would be more natural if unfolding with a non-directory still
+  ;; deleted containing overlays.
+  (unless (and (looking-at ".*/\n") (pe/folded-p))
     (cl-return-from pe/unfold-prog))
+
   (pe/folds-add (pe/get-filename))
-  ;; TODO: Try simplifying with (overlays-at)
+  ;; FIXME: Try simplifying with (overlays-at)
   (save-excursion
     (while (let* (( line-end (line-end-position))
                   ( ov (cl-find-if
@@ -478,6 +480,10 @@ Does nothing on an open line."
                (delete-overlay ov)
                t))
       (pe/up-element-internal))))
+
+;; FIXME: The behaviour when point is immediately after an overlay is clumsy. I
+;; should probably change it to return nil, and use `es-line-folded-p' when it
+;; is needed.
 
 (defun pe/folded-p ()
   "Will return t, if the current line is a folded directory, or if the cursor is
