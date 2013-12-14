@@ -1,4 +1,8 @@
 ;;; project-explorer.el --- A project explorer sidebar -*- lexical-binding: t -*-
+
+;; Hi-lock: (("^;;; \\*.+" (0 '(:inherit (bold org-level-1)) t)))
+;; Hi-lock: end
+
 ;;; Version: 0.10.1
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
@@ -35,6 +39,8 @@
 (require 'dired)
 (require 'helm-utils)
 
+;;; * User variables
+
 (defgroup project-explorer nil
   "A project explorer sidebar."
   :group 'convenience)
@@ -49,7 +55,6 @@
   (concat (file-name-as-directory
            user-emacs-directory)
           "project-explorer/"))
-(defvar pe/cache-alist nil)
 
 (defvar pe/get-directory-tree-find-command
   "find . \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) ")
@@ -106,7 +111,9 @@ Directories matching this regular expression won't be traversed."
   "A function that determines the project root.
 Called with no arguments, with the originating buffer as current.")
 
-;;; Internal variables
+;;; * Internal variables
+
+(defvar pe/cache-alist nil)
 
 (defvar-local pe/project-root nil
   "The project a project-explorer buffer belongs to.
@@ -157,13 +164,6 @@ Set once, when the buffer is first created.")
   (if pe/omit-regex
       (not (string-match-p pe/omit-regex name))
     t))
-
-(defun pe/cache-make-filename (filename)
-  (concat
-   (file-name-as-directory
-    dc/cache-dir)
-   (file-name-nondirectory
-    (make-backup-file-name filename))))
 
 (cl-defun pe/get-directory-tree-find (dir done-func)
   (let* (( default-directory dir)
@@ -277,6 +277,18 @@ Set once, when the buffer is first created.")
     (cadr root)
     ))
 
+;;; ** Caching
+
+(defun pe/cache-make-filename (filename)
+  (concat
+   (file-name-as-directory
+    dc/cache-dir)
+   (file-name-nondirectory
+    (make-backup-file-name filename))))
+
+;; (defun pe/get-directory-tree-find-cached (dir done-func)
+;;   )
+
 ;;; * Fold data
 
 (defun pe/folds-add (file-name)
@@ -340,16 +352,6 @@ Set once, when the buffer is first created.")
                 (pe/make-hiding-overlay
                  (1- start) (1- (point))))
               ))))
-
-(defun pe/current-indnetation ()
-  (- (pe/tab-ending)
-     (line-beginning-position)))
-
-(defun pe/tab-ending ()
-  (save-excursion
-    (goto-char (line-beginning-position))
-    (skip-chars-forward "\t")
-    (point)))
 
 (defun pe/get-filename ()
   "Return the filename at point."
@@ -436,51 +438,6 @@ Makes adjustments for folding."
 
 ;;; ** Folding
 
-(defun pe/fold-with-descentants (root descendant-list)
-  (save-excursion
-    (let* ((root-point (save-excursion (pe/goto-file root)))
-           (locations-to-fold (list root-point)))
-      (cl-assert root-point nil
-                 "pe/goto-file returned nil for %s"
-                 root)
-      (cl-dolist (path descendant-list)
-        (cl-pushnew (pe/goto-file path) locations-to-fold)
-        (cl-loop (pe/up-element)
-                 (if (or (<= (point) root-point)
-                         (memq (point) locations-to-fold))
-                     (cl-return)
-                   (cl-pushnew (point) locations-to-fold)))
-        )
-      (cl-dolist (location locations-to-fold)
-        (goto-char location)
-        (pe/fold-this-line))
-      )))
-
-(cl-defun pe/unfold-internal ()
-  (pe/folds-add (pe/get-filename))
-  (save-excursion
-    (while (let* (( line-end (line-end-position))
-                  ( ov (cl-find-if
-                        (lambda (ov)
-                          (and (overlay-get ov 'is-pe-hider)
-                               (= line-end (overlay-start ov))))
-                        (overlays-at line-end))))
-             (when ov
-               (delete-overlay ov)
-               t))
-      (pe/up-element-internal))))
-
-(defun pe/user-folded-p ()
-  "Will return t, if the current line is a folded directory,
-or if the cursor is inside a folded region."
-  (let (( ovs (save-excursion
-                (goto-char (es-total-line-beginning-position))
-                (goto-char (line-end-position))
-                (overlays-at (point)))))
-    (cl-some (lambda (ov)
-               (overlay-get ov 'is-pe-hider))
-             ovs)))
-
 (defun pe/make-hiding-overlay (from to)
   (let* (( ov (make-overlay from to))
          line-beginning
@@ -502,32 +459,74 @@ or if the cursor is inside a folded region."
               (priority ,priority)))
     ov))
 
-(defun pe/fold-this-line ()
-  (let* (( indent
-           (save-excursion
-             (goto-char (line-beginning-position))
-             (skip-chars-forward "\t")
-             (buffer-substring (line-beginning-position)
-                               (point))))
-         ( end
-           (save-excursion
-             (goto-char (line-end-position 1))
-             (let (( regex
-                     (format "^\t\\{0,%s\\}[^\t\n]"
-                             (length indent))))
-               (if (re-search-forward regex nil t)
-                   (line-end-position 0)
-                 (point-max))))))
-    (pe/make-hiding-overlay (line-end-position 1)
-                            end)))
+(cl-defun pe/unfold-internal ()
+  (pe/folds-add (pe/get-filename))
+  (save-excursion
+    (while (let* (( line-end (line-end-position))
+                  ( ov (cl-find-if
+                        (lambda (ov)
+                          (and (overlay-get ov 'is-pe-hider)
+                               (= line-end (overlay-start ov))))
+                        (overlays-at line-end))))
+             (when ov
+               (delete-overlay ov)
+               t))
+      (pe/up-element-internal))))
+
+(defun pe/folded-p ()
+  "Will return t, if the current line is a folded directory, or if the cursor is
+inside a folded region. Will also return t when after a folding overlay."
+  (let (( ovs (save-excursion
+                (goto-char (es-total-line-beginning-position))
+                (goto-char (line-end-position))
+                (overlays-at (point)))))
+    (cl-some (lambda (ov)
+               (overlay-get ov 'is-pe-hider))
+             ovs)))
 
 (cl-defun pe/fold ()
   (interactive)
-  (when (or (looking-at-p ".*\n?\\'")
-            (pe/user-folded-p))
+  (when (or (looking-at-p ".*\n?\\'")   ; Last line
+            (pe/folded-p))
     (cl-return-from pe/fold))
-  (let* (( file-name (pe/user-get-filename)))
-    (pe/fold-with-descentants file-name (pe/folds-remove file-name))))
+  (cl-labels (( fold-this-line ()
+                (let* (( indent
+                         (save-excursion
+                           (goto-char (line-beginning-position))
+                           (skip-chars-forward "\t")
+                           (buffer-substring (line-beginning-position)
+                                             (point))))
+                       ( end
+                         (save-excursion
+                           (goto-char (line-end-position 1))
+                           (let (( regex
+                                   (format "^\t\\{0,%s\\}[^\t\n]"
+                                           (length indent))))
+                             (if (re-search-forward regex nil t)
+                                 (line-end-position 0)
+                               (point-max))))))
+                  (pe/make-hiding-overlay (line-end-position 1)
+                                          end))))
+    (let* (( root (pe/user-get-filename))
+           ( descendant-list (pe/folds-remove root)))
+      (save-excursion
+        (let* ((root-point (save-excursion (pe/goto-file root)))
+               (locations-to-fold (list root-point)))
+          (cl-assert root-point nil
+                     "pe/goto-file returned nil for %s"
+                     root)
+          (cl-dolist (path descendant-list)
+            (cl-pushnew (pe/goto-file path) locations-to-fold)
+            (cl-loop (pe/up-element)
+                     (if (or (<= (point) root-point)
+                             (memq (point) locations-to-fold))
+                         (cl-return)
+                       (cl-pushnew (point) locations-to-fold)))
+            )
+          (cl-dolist (location locations-to-fold)
+            (goto-char location)
+            (fold-this-line))
+          )))))
 
 (defun pe/fold-all ()
   (interactive)
@@ -550,7 +549,7 @@ or if the cursor is inside a folded region."
       (while (re-search-forward "/$" end t)
         (pe/unfold-internal)))))
 
-(cl-defun pe/unfold (&optional expanded)
+(defun pe/unfold (&optional expanded)
   (interactive "P")
   (let (( line-beginning
           (es-total-line-beginning-position)))
@@ -559,14 +558,13 @@ or if the cursor is inside a folded region."
                line-beginning))
       (goto-char line-beginning)
       (goto-char (1- (line-end-position)))))
-  (when expanded
-    (pe/unfold-descendants)
-    (cl-return-from pe/unfold))
-  (unless (pe/user-folded-p)
-    (cl-return-from pe/unfold))
-  (pe/unfold-internal))
+  (cond ( expanded
+          (pe/unfold-descendants))
+        ( (not (pe/folded-p)))
+        ( t (pe/unfold-internal))))
 
 ;;; ** Navigation
+
 (defun pe/forward-element (&optional arg)
   (interactive "p")
   (setq arg (or arg 1))
@@ -589,7 +587,8 @@ or if the cursor is inside a folded region."
   (pe/forward-element (- arg)))
 
 (defun pe/up-element-internal ()
-  (let (( indentation (pe/current-indnetation)))
+  (let (( indentation
+          (es-current-character-indentation)))
     (and (cl-plusp indentation)
          (re-search-backward (format
                               "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
@@ -600,7 +599,6 @@ or if the cursor is inside a folded region."
 (defun pe/goto-top ()
   (interactive)
   (re-search-backward "^[^\t]" nil t))
-
 
 (defun pe/up-element ()
   "Goto the parent element of the file at point.
@@ -733,7 +731,7 @@ Joined directories will be traversed as one."
   "Toggle folding at point.
 With a prefix argument, unfold all children."
   (interactive "P")
-  (if (or arg (pe/user-folded-p))
+  (if (or arg (pe/folded-p))
       (pe/unfold arg)
     (pe/fold)))
 
@@ -750,6 +748,7 @@ With a prefix argument, unfold all children."
           )))
 
 ;;; ** Isearch
+
 (defun pe/isearch-show (ov)
   (save-excursion
     (goto-char (overlay-start ov))
@@ -762,6 +761,7 @@ With a prefix argument, unfold all children."
 
 
 ;;; ** Occur
+
 (defadvice occur-mode (after pe/try-matching-tab-width activate)
   (and (boundp 'buf-name)
        (boundp 'bufs)
@@ -780,12 +780,30 @@ With a prefix argument, unfold all children."
 
 ;;; * Main entry points
 ;;; * Window managment
+
 (defun pe/quit ()
   (interactive)
   (let ((window (selected-window)))
     (quit-window)
     (when (window-live-p window)
       (delete-window))))
+
+(defun pe/show-file (&optional file-name)
+  "Show `file-name' in the associated project-explorer buffer."
+  (interactive)
+  (let* (( error-message
+           "The buffer is not associated with a file")
+         ( file-name
+           (expand-file-name
+            (or file-name
+                (buffer-file-name)
+                (when (derived-mode-p 'dired-mode)
+                  (dired-current-directory))
+                (if (called-interactively-p 'interactive)
+                    (user-error error-message)
+                  (error error-message))))))
+    (project-explorer-open)
+    (pe/show-file-internal file-name)))
 
 (defun pe/get-current-project-explorer-buffer ()
   (let (( project-root (funcall pe/project-root-function))
@@ -850,11 +868,9 @@ With a prefix argument, unfold all children."
   (es-buffers-with-mode 'project-explorer-mode))
 
 ;;; * Other
-(defun pe/get-directory-tree-find-cached (dir done-func)
-  )
 
 (defun pe/set-tree (buffer data)
-  "Called once data retrieval is complete."
+  "Called after data retrieval is complete."
   (with-current-buffer buffer
     (let* (( window-start (window-start))
            ( starting-column (current-column))
@@ -959,22 +975,6 @@ With a prefix argument, unfold all children."
 
 ;;; Interface
 
-(defun pe/show-file (&optional file-name)
-  (interactive)
-  (let* (( error-message
-           "The buffer is not associated with a file")
-         ( file-name
-           (expand-file-name
-            (or file-name
-                (buffer-file-name)
-                (when (derived-mode-p 'dired-mode)
-                  (dired-current-directory))
-                (if (called-interactively-p 'interactive)
-                    (user-error error-message)
-                  (error error-message))))))
-    (project-explorer-open)
-    (pe/show-file-internal file-name)))
-
 (defun pe/set-directory (dir)
   (interactive
    (let ((file-name (pe/user-get-filename)))
@@ -1034,6 +1034,7 @@ With a prefix argument, unfold all children."
 
 ;; Local Variables:
 ;; eval: (orgstruct-mode)
+;; eval: (hi-lock-mode)
 ;; orgstruct-heading-prefix-regexp: "^;;; \\*"
 ;; End:
 
