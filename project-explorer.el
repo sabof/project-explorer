@@ -460,7 +460,13 @@ Makes adjustments for folding."
     ov))
 
 (cl-defun pe/unfold-prog ()
+  "Register current line as opened, and delete all overlays that might be hiding it.
+Does nothing on an open line."
+  (unless (and (pe/folded-p)
+               (looking-at ".*/\n"))
+    (cl-return-from pe/unfold-prog))
   (pe/folds-add (pe/get-filename))
+  ;; TODO: Try simplifying with (overlays-at)
   (save-excursion
     (while (let* (( line-end (line-end-position))
                   ( ov (cl-find-if
