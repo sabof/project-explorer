@@ -119,7 +119,387 @@ Set once, when the buffer is first created.")
 (defvar-local pe/reverting nil)
 (defvar-local pe/after-revert-function nil)
 
-;;; Functions
+;;; * Backends
+;;; * Folds data
+
+(defun pe/folds-add (file-name)
+  (setq pe/folds-open
+        (cons file-name
+              (cl-remove-if
+               (lambda (listed-file-name)
+                 (string-prefix-p listed-file-name file-name))
+               pe/folds-open))))
+
+(defun pe/folds-remove (file-name)
+  (let* (( parent
+           (file-name-directory
+            (directory-file-name
+             file-name)))
+         ( new-folds
+           (cl-remove-if
+            (lambda (listed-file-name)
+              (string-prefix-p file-name listed-file-name))
+            pe/folds-open))
+         ( removed-folds
+           (cl-set-difference pe/folds-open
+                              new-folds
+                              :test 'string-equal)))
+    (setq pe/folds-open new-folds)
+    (when (and parent
+               (not (string-equal parent default-directory))
+               (not (cl-find-if (lambda (file-name)
+                                  (string-prefix-p parent file-name))
+                                pe/folds-open)))
+      (push parent pe/folds-open))
+    removed-folds))
+
+(defun pe/folds-reset ()
+  (setq pe/folds-open))
+
+(defun pe/folds-restore ()
+  (let ((old-folds pe/folds-open))
+    (pe/folds-reset)
+    (cl-dolist (fold old-folds)
+      (when (pe/goto-file fold nil t)
+        (pe/unfold-internal)))))
+
+;;; * Navigation
+
+(defun pe/current-indnetation ()
+  (- (pe/tab-ending)
+     (line-beginning-position)))
+
+(defun pe/tab-ending ()
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (skip-chars-forward "\t")
+    (point)))
+
+(cl-defun pe/unfold-internal ()
+  (pe/folds-add (pe/get-filename))
+  (save-excursion
+    (while (let* (( line-end (line-end-position))
+                  ( ov (cl-find-if
+                        (lambda (ov)
+                          (and (overlay-get ov 'is-pe-hider)
+                               (= line-end (overlay-start ov))))
+                        (overlays-at line-end))))
+             (when ov
+               (delete-overlay ov)
+               t))
+      (pe/up-element-internal))))
+
+(defun pe/user-folded-p ()
+  "Will return t, if the current line is a folded directory,
+or if the cursor is inside a folded region."
+  (let (( ovs (save-excursion
+                (goto-char (es-total-line-beginning-position))
+                (goto-char (line-end-position))
+                (overlays-at (point)))))
+    (cl-some (lambda (ov)
+               (overlay-get ov 'is-pe-hider))
+             ovs)))
+
+(defun pe/up-element-internal ()
+  (let (( indentation (pe/current-indnetation)))
+    (and (cl-plusp indentation)
+         (re-search-backward (format
+                              "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
+                              (1- indentation))
+                             nil t)
+         (goto-char (match-end 1)))))
+
+(defun pe/get-filename ()
+  "Return the filename at point."
+  (save-excursion
+    (cl-labels
+        (( get-line-text ()
+           (goto-char (line-beginning-position))
+           (skip-chars-forward "\t ")
+           (buffer-substring-no-properties
+            (point) (line-end-position))))
+      (let (( result (get-line-text)))
+        (while (pe/up-element-internal)
+          (setq result (concat (get-line-text) result)))
+        (setq result (expand-file-name result))
+        (when (file-directory-p result)
+          (setq result (file-name-as-directory result)))
+        result))))
+(cl-defun pe/goto-file
+    (file-name &optional on-each-semgent-function use-best-match)
+  (when (string-equal (expand-file-name file-name) default-directory)
+    (cl-return-from pe/goto-file nil))
+  (let* (( segments (split-string
+                     (if (file-name-absolute-p file-name)
+                         (if (string-prefix-p default-directory file-name)
+                             (substring file-name (length default-directory))
+                           (cl-return-from pe/goto-file))
+                       file-name)
+                     "/" t))
+         ( init-pos (point))
+         best-match
+         next-round-start
+         found)
+    (goto-char (point-min))
+    (save-match-data
+      (cl-loop with limit
+               for segment in segments
+               for indent = 0 then (1+ indent)
+               do
+               (when next-round-start
+                 (goto-char next-round-start))
+               (cond ( (and (cl-plusp indent)
+                            (looking-at (concat (regexp-quote segment) "/")))
+                       (setq next-round-start (match-end 0))
+                       (setq best-match (point))
+                       (cl-decf indent))
+                     ( (re-search-forward
+                        (format "^\t\\{%s\\}\\(?1:%s\\)[/\n]"
+                                (int-to-string indent)
+                                (regexp-quote segment))
+                        limit t)
+                       (setq next-round-start (match-end 0))
+                       (setq limit (save-excursion
+                                     (pe/forward-element)))
+                       (setq best-match (match-beginning 1))
+                       (when on-each-semgent-function
+                         (save-excursion
+                           (goto-char (match-beginning 1))
+                           (funcall on-each-semgent-function))))
+                     ( t (cl-return)))
+               finally (setq found t)))
+    (cl-assert (or (not found) (and found best-match)) nil
+               "Found, without best-match, with file-name %s"
+               file-name)
+    (if (or found (and best-match use-best-match))
+        (progn (goto-char best-match)
+               (when found (point)))
+      (goto-char init-pos)
+      nil)))
+
+(defun pe/fold-this-line ()
+  (let* (( indent
+           (save-excursion
+             (goto-char (line-beginning-position))
+             (skip-chars-forward "\t")
+             (buffer-substring (line-beginning-position)
+                               (point))))
+         ( end
+           (save-excursion
+             (goto-char (line-end-position 1))
+             (let (( regex
+                     (format "^\t\\{0,%s\\}[^\t\n]"
+                             (length indent))))
+               (if (re-search-forward regex nil t)
+                   (line-end-position 0)
+                 (point-max))))))
+    (pe/make-hiding-overlay (line-end-position 1)
+                            end)))
+
+(defun pe/fold-with-descentants (root descendant-list)
+  (save-excursion
+    (let* ((root-point (save-excursion (pe/goto-file root)))
+           (locations-to-fold (list root-point)))
+      (cl-assert root-point nil
+                 "pe/goto-file returned nil for %s"
+                 root)
+      (cl-dolist (path descendant-list)
+        (cl-pushnew (pe/goto-file path) locations-to-fold)
+        (cl-loop (pe/up-element)
+                 (if (or (<= (point) root-point)
+                         (memq (point) locations-to-fold))
+                     (cl-return)
+                   (cl-pushnew (point) locations-to-fold)))
+        )
+      (cl-dolist (location locations-to-fold)
+        (goto-char location)
+        (pe/fold-this-line))
+      )))
+
+(defun pe/goto-top ()
+  (interactive)
+  (re-search-backward "^[^\t]" nil t))
+
+(cl-defun pe/fold ()
+  (interactive)
+  (when (or (looking-at-p ".*\n?\\'")
+            (pe/user-folded-p))
+    (cl-return-from pe/fold))
+  (let* (( file-name (pe/user-get-filename)))
+    (pe/fold-with-descentants file-name (pe/folds-remove file-name))))
+
+(defun pe/fold-all ()
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward "^.+/$" nil t)
+      (pe/fold))))
+
+(defun pe/unfold-all ()
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward "^.+/$" nil t)
+      (pe/unfold-descendants))))
+
+(cl-defun pe/unfold (&optional expanded)
+  (interactive "P")
+  (let (( line-beginning
+          (es-total-line-beginning-position)))
+    (when (/= (line-number-at-pos)
+              (line-number-at-pos
+               line-beginning))
+      (goto-char line-beginning)
+      (goto-char (1- (line-end-position)))))
+  (when expanded
+    (pe/unfold-descendants)
+    (cl-return-from pe/unfold))
+  (unless (pe/user-folded-p)
+    (cl-return-from pe/unfold))
+  (pe/unfold-internal))
+
+(defun pe/forward-element (&optional arg)
+  (interactive "p")
+  (setq arg (or arg 1))
+  (save-match-data
+    (let* (( initial-indentation
+             (es-current-character-indentation))
+           ( regex (format "^\t\\{0,%s\\}[^\t\n]"
+                           initial-indentation)))
+      (if (cl-minusp arg)
+          (goto-char (line-beginning-position))
+        (goto-char (line-end-position)))
+      (when (re-search-forward regex nil t arg)
+        (goto-char (match-end 0))
+        (forward-char -1)
+        (point)))))
+
+(defun pe/backward-element (&optional arg)
+  (interactive "p")
+  (setq arg (or arg 1))
+  (pe/forward-element (- arg)))
+
+;;; ** Interactive wrappers
+
+(defun pe/up-element ()
+  "Goto the parent element of the file at point.
+Joined directories will be traversed as one."
+  (interactive)
+  (goto-char (es-total-line-beginning-position))
+  (pe/up-element-internal))
+
+;;; * Helm
+
+(defvar pe/helm-buffer-max-length 30)
+
+(defun pe/flatten-tree (tree &optional prefix)
+  (let (( current-prefix
+          (if prefix
+              (concat prefix "/" (car tree))
+            (car tree))))
+    (cl-mapcan (lambda (it)
+                 (if (consp it)
+                     (pe/flatten-tree it current-prefix)
+                   (list (concat current-prefix "/" it))))
+               (cdr tree))))
+
+(cl-defun pe/helm-candidates ()
+  (with-current-buffer
+      (pe/get-current-project-explorer-buffer)
+    (let* (( visited-files
+             ;; Contains paths of open buffers relative to default-directory
+             (let (( buffer-list (remove helm-current-buffer (buffer-list)))
+                   ( \default-directory-length
+                     (length default-directory)))
+               (mapcar (lambda (long-name)
+                         (substring long-name default-directory-length))
+                       (remove-if (lambda (name)
+                                    (or (null name)
+                                        (not (string-prefix-p default-directory name))))
+                                  (mapcar 'buffer-file-name buffer-list)))))
+           ( flattened-file-list
+             (cl-remove-if
+              (lambda (file-name)
+                (or (string-match-p "/$" file-name)
+                    (member file-name visited-files)))
+              (or pe/helm-cache
+                  (setq pe/helm-cache
+                        (cl-mapcan (lambda (it)
+                                     (if (consp it)
+                                         (pe/flatten-tree it)
+                                       (list it)))
+                                   (cdr pe/data))))))
+           ( to-cons
+             (lambda (highlight file-name)
+               (cons (format "%s\t%s"
+                             (let (( file-name-nondirectory
+                                     (truncate-string-to-width
+                                      (file-name-nondirectory
+                                       file-name)
+                                      pe/helm-buffer-max-length
+                                      nil ?  t)))
+                               (if highlight
+                                   (propertize file-name-nondirectory
+                                               'face
+                                               'font-lock-function-name-face)
+                                 file-name-nondirectory))
+                             (propertize file-name 'face 'font-lock-keyword-face))
+                     file-name))))
+      (nconc (mapcar (apply-partially to-cons t)
+                     visited-files)
+             (mapcar (apply-partially to-cons nil)
+                     flattened-file-list))
+      )))
+
+(defun pe/helm-find-file (file)
+  (with-current-buffer
+      (pe/get-current-project-explorer-buffer)
+    (find-file (expand-file-name file))))
+
+(defvar pe/helm-source
+  '(( name . "Project explorer")
+    ( candidates . pe/helm-candidates)
+    ( action . (("Find file" . pe/helm-find-file)))
+    ( no-delay-on-input)
+    ))
+
+(defun project-explorer-helm ()
+  "Browse the project using helm."
+  (interactive)
+  (require 'helm)
+  (unless (pe/get-current-project-explorer-buffer)
+    (save-window-excursion
+      (project-explorer-open)))
+  (helm :sources '(pe/helm-source)))
+
+;;; * User functions
+(defun pe/quit ()
+  (interactive)
+  (let ((window (selected-window)))
+    (quit-window)
+    (when (window-live-p window)
+      (delete-window))))
+
+(defun pe/middle-click (event)
+  (interactive "e")
+  (mouse-set-point event)
+  (pe/return))
+
+(defun pe/left-click (event)
+  (interactive "e")
+  (and mouse-1-click-follows-link
+       (save-excursion
+         (mouse-set-point event)
+         (looking-at-p "[^ \t\n]"))
+       (pe/middle-click event)))
+
+(defun pe/return ()
+  (interactive)
+  (if (file-directory-p (pe/user-get-filename))
+      (pe/tab)
+    (pe/find-file)))
+
+;;; * Other
 
 (defun pe/cache-make-filename (filename)
   (concat
@@ -358,75 +738,6 @@ Set once, when the buffer is first created.")
                  (1- start) (1- (point))))
               ))))
 
-;;; PE/FOLDS
-
-(defun pe/folds-add (file-name)
-  (setq pe/folds-open
-        (cons file-name
-              (cl-remove-if
-               (lambda (listed-file-name)
-                 (string-prefix-p listed-file-name file-name))
-               pe/folds-open))))
-
-(defun pe/folds-remove (file-name)
-  (let* (( parent
-           (file-name-directory
-            (directory-file-name
-             file-name)))
-         ( new-folds
-           (cl-remove-if
-            (lambda (listed-file-name)
-              (string-prefix-p file-name listed-file-name))
-            pe/folds-open))
-         ( removed-folds
-           (cl-set-difference pe/folds-open
-                              new-folds
-                              :test 'string-equal)))
-    (setq pe/folds-open new-folds)
-    (when (and parent
-               (not (string-equal parent default-directory))
-               (not (cl-find-if (lambda (file-name)
-                                  (string-prefix-p parent file-name))
-                                pe/folds-open)))
-      (push parent pe/folds-open))
-    removed-folds))
-
-(defun pe/folds-reset ()
-  (setq pe/folds-open))
-
-(defun pe/folds-restore ()
-  (let ((old-folds pe/folds-open))
-    (pe/folds-reset)
-    (cl-dolist (fold old-folds)
-      (when (pe/goto-file fold nil t)
-        (pe/unfold-internal)))))
-
-;;; PE/FOLDS EOF
-
-(defun pe/current-indnetation ()
-  (- (pe/tab-ending)
-     (line-beginning-position)))
-
-(defun pe/tab-ending ()
-  (save-excursion
-    (goto-char (line-beginning-position))
-    (skip-chars-forward "\t")
-    (point)))
-
-(cl-defun pe/unfold-internal ()
-  (pe/folds-add (pe/get-filename))
-  (save-excursion
-    (while (let* (( line-end (line-end-position))
-                  ( ov (cl-find-if
-                        (lambda (ov)
-                          (and (overlay-get ov 'is-pe-hider)
-                               (= line-end (overlay-start ov))))
-                        (overlays-at line-end))))
-             (when ov
-               (delete-overlay ov)
-               t))
-      (pe/up-element-internal))))
-
 (defun pe/unfold-descendants ()
   (save-excursion
     (goto-char (line-beginning-position))
@@ -465,132 +776,6 @@ Set once, when the buffer is first created.")
               (priority ,priority)))
     ov))
 
-(cl-defun pe/goto-file
-    (file-name &optional on-each-semgent-function use-best-match)
-  (when (string-equal (expand-file-name file-name) default-directory)
-    (cl-return-from pe/goto-file nil))
-  (let* (( segments (split-string
-                     (if (file-name-absolute-p file-name)
-                         (if (string-prefix-p default-directory file-name)
-                             (substring file-name (length default-directory))
-                           (cl-return-from pe/goto-file))
-                       file-name)
-                     "/" t))
-         ( init-pos (point))
-         best-match
-         next-round-start
-         found)
-    (goto-char (point-min))
-    (save-match-data
-      (cl-loop with limit
-               for segment in segments
-               for indent = 0 then (1+ indent)
-               do
-               (when next-round-start
-                 (goto-char next-round-start))
-               (cond ( (and (cl-plusp indent)
-                            (looking-at (concat (regexp-quote segment) "/")))
-                       (setq next-round-start (match-end 0))
-                       (setq best-match (point))
-                       (cl-decf indent))
-                     ( (re-search-forward
-                        (format "^\t\\{%s\\}\\(?1:%s\\)[/\n]"
-                                (int-to-string indent)
-                                (regexp-quote segment))
-                        limit t)
-                       (setq next-round-start (match-end 0))
-                       (setq limit (save-excursion
-                                     (pe/forward-element)))
-                       (setq best-match (match-beginning 1))
-                       (when on-each-semgent-function
-                         (save-excursion
-                           (goto-char (match-beginning 1))
-                           (funcall on-each-semgent-function))))
-                     ( t (cl-return)))
-               finally (setq found t)))
-    (cl-assert (or (not found) (and found best-match)) nil
-               "Found, without best-match, with file-name %s"
-               file-name)
-    (if (or found (and best-match use-best-match))
-        (progn (goto-char best-match)
-               (when found (point)))
-      (goto-char init-pos)
-      nil)))
-
-(defun pe/fold-this-line ()
-  (let* (( indent
-           (save-excursion
-             (goto-char (line-beginning-position))
-             (skip-chars-forward "\t")
-             (buffer-substring (line-beginning-position)
-                               (point))))
-         ( end
-           (save-excursion
-             (goto-char (line-end-position 1))
-             (let (( regex
-                     (format "^\t\\{0,%s\\}[^\t\n]"
-                             (length indent))))
-               (if (re-search-forward regex nil t)
-                   (line-end-position 0)
-                 (point-max))))))
-    (pe/make-hiding-overlay (line-end-position 1)
-                            end)))
-
-(defun pe/fold-with-descentants (root descendant-list)
-  (save-excursion
-    (let* ((root-point (save-excursion (pe/goto-file root)))
-           (locations-to-fold (list root-point)))
-      (cl-assert root-point nil
-                 "pe/goto-file returned nil for %s"
-                 root)
-      (cl-dolist (path descendant-list)
-        (cl-pushnew (pe/goto-file path) locations-to-fold)
-        (cl-loop (pe/up-element)
-                 (if (or (<= (point) root-point)
-                         (memq (point) locations-to-fold))
-                     (cl-return)
-                   (cl-pushnew (point) locations-to-fold)))
-        )
-      (cl-dolist (location locations-to-fold)
-        (goto-char location)
-        (pe/fold-this-line))
-      )))
-
-(defun pe/user-folded-p ()
-  (let (( ovs (save-excursion
-                (goto-char (es-total-line-beginning-position))
-                (goto-char (line-end-position))
-                (overlays-at (point)))))
-    (cl-some (lambda (ov)
-               (overlay-get ov 'is-pe-hider))
-             ovs)))
-
-(defun pe/up-element-internal ()
-  (let (( indentation (pe/current-indnetation)))
-    (and (cl-plusp indentation)
-         (re-search-backward (format
-                              "^\\(?1:\t\\{0,%s\\}\\)[^\t\n]"
-                              (1- indentation))
-                             nil t)
-         (goto-char (match-end 1)))))
-
-(defun pe/get-filename ()
-  "Return the filename at point."
-  (save-excursion
-    (cl-labels
-        (( get-line-text ()
-           (goto-char (line-beginning-position))
-           (skip-chars-forward "\t ")
-           (buffer-substring-no-properties
-            (point) (line-end-position))))
-      (let (( result (get-line-text)))
-        (while (pe/up-element-internal)
-          (setq result (concat (get-line-text) result)))
-        (setq result (expand-file-name result))
-        (when (file-directory-p result)
-          (setq result (file-name-as-directory result)))
-        result))))
-
 (defun pe/get-current-project-explorer-buffer ()
   (let (( project-root (funcall pe/project-root-function))
         ( project-explorer-buffers (pe/get-project-explorer-buffers)))
@@ -600,92 +785,6 @@ Set once, when the buffer is first created.")
                     (with-current-buffer project-explorer-buffer
                       pe/project-root))
              :test 'string-equal)))
-
-(defun pe/flatten-tree (tree &optional prefix)
-  (let (( current-prefix
-          (if prefix
-              (concat prefix "/" (car tree))
-            (car tree))))
-    (cl-mapcan (lambda (it)
-                 (if (consp it)
-                     (pe/flatten-tree it current-prefix)
-                   (list (concat current-prefix "/" it))))
-               (cdr tree))))
-
-;;; HELM
-
-(defvar pe/helm-buffer-max-length 30)
-
-(cl-defun pe/helm-candidates ()
-  (with-current-buffer
-      (pe/get-current-project-explorer-buffer)
-    (let* (( visited-files
-             ;; Contains paths of open buffers relative to default-directory
-             (let (( buffer-list (remove helm-current-buffer (buffer-list)))
-                   ( \default-directory-length
-                     (length default-directory)))
-               (mapcar (lambda (long-name)
-                         (substring long-name default-directory-length))
-                       (remove-if (lambda (name)
-                                    (or (null name)
-                                        (not (string-prefix-p default-directory name))))
-                                  (mapcar 'buffer-file-name buffer-list)))))
-           ( flattened-file-list
-             (cl-remove-if
-              (lambda (file-name)
-                (or (string-match-p "/$" file-name)
-                    (member file-name visited-files)))
-              (or pe/helm-cache
-                  (setq pe/helm-cache
-                        (cl-mapcan (lambda (it)
-                                     (if (consp it)
-                                         (pe/flatten-tree it)
-                                       (list it)))
-                                   (cdr pe/data))))))
-           ( to-cons
-             (lambda (highlight file-name)
-               (cons (format "%s\t%s"
-                             (let (( file-name-nondirectory
-                                     (truncate-string-to-width
-                                      (file-name-nondirectory
-                                       file-name)
-                                      pe/helm-buffer-max-length
-                                      nil ?  t)))
-                               (if highlight
-                                   (propertize file-name-nondirectory
-                                               'face
-                                               'font-lock-function-name-face)
-                                 file-name-nondirectory))
-                             (propertize file-name 'face 'font-lock-keyword-face))
-                     file-name))))
-      (nconc (mapcar (apply-partially to-cons t)
-                     visited-files)
-             (mapcar (apply-partially to-cons nil)
-                     flattened-file-list))
-      )))
-
-(defun pe/helm-find-file (file)
-  (with-current-buffer
-      (pe/get-current-project-explorer-buffer)
-    (find-file (expand-file-name file))))
-
-(defvar pe/helm-source
-  '(( name . "Project explorer")
-    ( candidates . pe/helm-candidates)
-    ( action . (("Find file" . pe/helm-find-file)))
-    ( no-delay-on-input)
-    ))
-
-(defun project-explorer-helm ()
-  "Browse the project using helm."
-  (interactive)
-  (require 'helm)
-  (unless (pe/get-current-project-explorer-buffer)
-    (save-window-excursion
-      (project-explorer-open)))
-  (helm :sources '(pe/helm-source)))
-
-;;; HELM EOF
 
 (defun pe/occur-mode-find-occurrence-hook ()
   (save-excursion
@@ -813,48 +912,6 @@ Set once, when the buffer is first created.")
 
 ;;; Interface
 
-(defun pe/goto-top ()
-  (interactive)
-  (re-search-backward "^[^\t]" nil t))
-
-(cl-defun pe/fold ()
-  (interactive)
-  (when (or (looking-at-p ".*\n?\\'")
-            (pe/user-folded-p))
-    (cl-return-from pe/fold))
-  (let* (( file-name (pe/user-get-filename)))
-    (pe/fold-with-descentants file-name (pe/folds-remove file-name))))
-
-(defun pe/fold-all ()
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "^.+/$" nil t)
-      (pe/fold))))
-
-(defun pe/unfold-all ()
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "^.+/$" nil t)
-      (pe/unfold-descendants))))
-
-(cl-defun pe/unfold (&optional expanded)
-  (interactive "P")
-  (let (( line-beginning
-          (es-total-line-beginning-position)))
-    (when (/= (line-number-at-pos)
-              (line-number-at-pos
-               line-beginning))
-      (goto-char line-beginning)
-      (goto-char (1- (line-end-position)))))
-  (when expanded
-    (pe/unfold-descendants)
-    (cl-return-from pe/unfold))
-  (unless (pe/user-folded-p)
-    (cl-return-from pe/unfold))
-  (pe/unfold-internal))
-
 (defun pe/show-file (&optional file-name)
   (interactive)
   (let* (( error-message
@@ -870,53 +927,6 @@ Set once, when the buffer is first created.")
                   (error error-message))))))
     (project-explorer-open)
     (pe/show-file-internal file-name)))
-
-(defun pe/quit ()
-  (interactive)
-  (let ((window (selected-window)))
-    (quit-window)
-    (when (window-live-p window)
-      (delete-window))))
-
-(defun pe/forward-element (&optional arg)
-  (interactive "p")
-  (setq arg (or arg 1))
-  (save-match-data
-    (let* (( initial-indentation
-             (es-current-character-indentation))
-           ( regex (format "^\t\\{0,%s\\}[^\t\n]"
-                           initial-indentation)))
-      (if (cl-minusp arg)
-          (goto-char (line-beginning-position))
-        (goto-char (line-end-position)))
-      (when (re-search-forward regex nil t arg)
-        (goto-char (match-end 0))
-        (forward-char -1)
-        (point)))))
-
-(defun pe/backward-element (&optional arg)
-  (interactive "p")
-  (setq arg (or arg 1))
-  (pe/forward-element (- arg)))
-
-(defun pe/middle-click (event)
-  (interactive "e")
-  (mouse-set-point event)
-  (pe/return))
-
-(defun pe/left-click (event)
-  (interactive "e")
-  (and mouse-1-click-follows-link
-       (save-excursion
-         (mouse-set-point event)
-         (looking-at-p "[^ \t\n]"))
-       (pe/middle-click event)))
-
-(defun pe/return ()
-  (interactive)
-  (if (file-directory-p (pe/user-get-filename))
-      (pe/tab)
-    (pe/find-file)))
 
 (defun pe/set-directory (dir)
   (interactive
@@ -951,12 +961,6 @@ With a prefix argument, unfold all children."
       (pe/unfold arg)
     (pe/fold)))
 
-(defun pe/up-element ()
-  "Goto the parent element of the file at point.
-Joined directories will be traversed as one."
-  (interactive)
-  (goto-char (es-total-line-beginning-position))
-  (pe/up-element-internal))
 
 (defun pe/user-get-filename ()
   "Return the aboslute file-name of the file at point.
@@ -1015,9 +1019,10 @@ Makes adjustments for folding."
                                  tab-width)))))
 
 (provide 'project-explorer)
-;;; project-explorer.el ends here
 
 ;; Local Variables:
 ;; eval: (orgstruct-mode)
 ;; orgstruct-heading-prefix-regexp: "^;;; \\*"
 ;; End:
+
+;;; project-explorer.el ends here
