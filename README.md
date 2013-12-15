@@ -18,6 +18,8 @@ A tree project explorer.
 ##Main key-bindings:
 
     "d"        Change directory
+    "+"        Create directory
+    "-"        Delete directory
     "j"        Next line
     "k"        Previous line
     "g"        refresh
