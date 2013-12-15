@@ -124,7 +124,7 @@ Set once, when the buffer is first created.")
 (defvar-local pe/previous-directory nil)
 (defvar-local pe/helm-cache nil)
 (defvar-local pe/reverting nil)
-(defvar-local pe/after-revert-function nil)
+;; (defvar-local pe/after-set-tree-function nil)
 
 ;;; * Backends
 
@@ -142,6 +142,8 @@ Set once, when the buffer is first created.")
                   (mapcar 'pe/compress-tree (cdr branch))))))
 
 (cl-defun pe/sort (branch)
+  "Recursively sort a tree.
+Directories first, then alphabetically."
   (when (stringp branch)
     (cl-return-from pe/sort branch))
   (let (( new-rest
@@ -171,6 +173,7 @@ Set once, when the buffer is first created.")
          ( output "")
          ( process
            (start-process "tree-find"
+                          ;; FIXME: Use the default shell.
                           buffer "bash" "-c"
                           pe/get-directory-tree-find-command)))
     (set-process-filter process
@@ -379,6 +382,7 @@ Set once, when the buffer is first created.")
 
 (cl-defun pe/goto-file
     (file-name &optional on-each-semgent-function use-best-match)
+  "Returns the position of the file, if it's found. Otherwise returns nil"
   (when (string-equal (expand-file-name file-name) default-directory)
     (cl-return-from pe/goto-file nil))
   (let* (( segments (split-string
@@ -792,7 +796,6 @@ With a prefix argument, unfold all children."
     (pe/up-element-prog)
     (pe/unfold-prog)))
 
-;;; * Main entry points
 ;;; * Window managment
 
 (defun pe/quit ()
@@ -881,13 +884,15 @@ File name defaults to `buffer-file-name'"
 (defun pe/get-project-explorer-buffers ()
   (es-buffers-with-mode 'project-explorer-mode))
 
-;;; * Other
+;;; * Core
 
 (defun pe/set-tree (buffer data)
-  "Called after data retrieval is complete."
+  "Called after data retrieval is complete.
+Redraws the tree based on DATA, and tries to restore open folds."
   (with-current-buffer buffer
     (let* (( window-start (window-start))
            ( starting-column (current-column))
+           ;; Won't behave correctly with pe/set-directory
            ( used-buffer pe/data)
            ( starting-name
              (and used-buffer
@@ -912,11 +917,9 @@ File name defaults to `buffer-file-name'"
         (font-lock-fontify-buffer)
         (goto-char (point-min)))
 
-      (if switching
-          (setq pe/folds-open nil)
+      (progn                            ; Restore state
         (pe/folds-restore)
         (set-window-start nil window-start)
-
         (and starting-name
              (pe/goto-file starting-name nil t)
              (move-to-column starting-column)))
@@ -925,9 +928,11 @@ File name defaults to `buffer-file-name'"
             pe/helm-cache nil
             pe/reverting nil)
 
-      (when pe/after-revert-function
-        (funcall pe/after-revert-function)
-        (setq pe/after-revert-function))
+      ;; Let caller hanlde those?
+
+      ;; (when pe/after-set-tree-function
+      ;;   (funcall pe/after-set-tree-function)
+      ;;   (setq pe/after-set-tree-function))
 
       (when (and used-buffer (not switching))
         (message "Refresh complete")))))
@@ -941,8 +946,8 @@ File name defaults to `buffer-file-name'"
            (apply-partially 'pe/set-tree (current-buffer))))
 
 (define-derived-mode project-explorer-mode special-mode
-    "Tree find"
-    "Display results of find as a folding tree"
+    "Project explorer"
+    nil
   (if (and pe/cache-enabled
            nil                          ; cached data esists
            )
@@ -986,8 +991,6 @@ File name defaults to `buffer-file-name'"
               'pe/hl-line-range)
   (font-lock-add-keywords
    'project-explorer-mode '(("^.+/$" (0 'pe/directory-face append)))))
-
-;;; Interface
 
 (defun pe/set-directory (dir)
   "Changes the root directory of the project explorer.
