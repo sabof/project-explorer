@@ -331,12 +331,12 @@ Set once, when the buffer is first created.")
 
 ;;; * Text
 
-(defun pe/file-p ()
+(defun pe/at-file-p ()
   (save-excursion
     (goto-char (line-beginning-position))
     (looking-at-p ".*[^/]$")))
 
-(defun pe/directory-p ()
+(defun pe/at-directory-p ()
   (save-excursion
     (goto-char (line-beginning-position))
     (looking-at-p ".*/$")))
@@ -493,8 +493,7 @@ Does nothing on an open line, or on a line that isn't a directory."
 ;; is needed.
 
 (defun pe/folded-p ()
-  "Will return t, if the current line is a folded directory, or if the cursor is
-inside a folded region. Will also return t when after a folding overlay."
+  "Will return t, at a folded directory, or a folded file."
   (let (( ovs (save-excursion
                 (goto-char (es-total-line-beginning-position))
                 (goto-char (line-end-position))
