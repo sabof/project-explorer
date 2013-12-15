@@ -436,7 +436,7 @@ Makes adjustments for folding."
     (goto-char (es-total-line-beginning))
     (pe/get-filename)))
 
-(defun pe/show-file-internal (&optional file-name)
+(defun pe/show-file-prog (&optional file-name)
   (when file-name
     (pe/goto-file file-name))
   (save-excursion
@@ -803,7 +803,8 @@ With a prefix argument, unfold all children."
       (delete-window))))
 
 (defun pe/show-file (&optional file-name)
-  "Show `file-name' in the associated project-explorer buffer."
+  "Show `file-name', in the associated project-explorer buffer.
+File name defaults to `buffer-file-name'"
   (interactive)
   (let* (( error-message
            "The buffer is not associated with a file")
@@ -817,7 +818,7 @@ With a prefix argument, unfold all children."
                     (user-error error-message)
                   (error error-message))))))
     (project-explorer-open)
-    (pe/show-file-internal file-name)))
+    (pe/show-file-prog file-name)))
 
 (defun pe/get-current-project-explorer-buffer ()
   (let (( project-root (funcall pe/project-root-function))
@@ -989,6 +990,9 @@ With a prefix argument, unfold all children."
 ;;; Interface
 
 (defun pe/set-directory (dir)
+  "Changes the root directory of the project explorer.
+The buffer will remain attached to it's project, even if the new directory is
+outside of the project's root."
   (interactive
    (let ((file-name (pe/user-get-filename)))
      (list (read-file-name
@@ -1040,7 +1044,7 @@ With a prefix argument, unfold all children."
     (when (and origin-file-name pe/goto-current-file-on-open)
       (with-current-buffer project-explorer-buffer
         (face-remap-add-relative 'default 'pe/file-face)
-        (pe/show-file-internal origin-file-name)))
+        (pe/show-file-prog origin-file-name)))
     project-explorer-buffer))
 
 (provide 'project-explorer)
