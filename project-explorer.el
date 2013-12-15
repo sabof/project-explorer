@@ -370,7 +370,7 @@ Set once, when the buffer is first created.")
            (buffer-substring-no-properties
             (point) (line-end-position))))
       (let (( result (get-line-text)))
-        (while (pe/up-element-internal)
+        (while (pe/up-element-prog)
           (setq result (concat (get-line-text) result)))
         (setq result (expand-file-name result))
         (when (file-directory-p result)
@@ -440,7 +440,7 @@ Makes adjustments for folding."
   (when file-name
     (pe/goto-file file-name))
   (save-excursion
-    (when (pe/up-element-internal)
+    (when (pe/up-element-prog)
       (pe/unfold-prog))))
 
 ;;; ** Folding
@@ -468,44 +468,35 @@ Makes adjustments for folding."
 
 (cl-defun pe/unfold-prog ()
   "Register current line as opened, and delete all overlays that might be hiding it.
-Does nothing on an open line, or on a line that isn't a directory."
-  ;; FIXME: It would be more natural if unfolding with a non-directory still
-  ;; deleted containing overlays.
-  (unless (and (looking-at ".*/\n") (pe/folded-p))
+Does nothing on an open line."
+  (unless (pe/folded-p)
     (cl-return-from pe/unfold-prog))
-
-  (pe/folds-add (pe/get-filename))
-  ;; FIXME: Try simplifying with (overlays-at)
   (save-excursion
-    (while (let* (( line-end (line-end-position))
-                  ( ov (cl-find-if
-                        (lambda (ov)
-                          (and (overlay-get ov 'is-pe-hider)
-                               (= line-end (overlay-start ov))))
-                        (overlays-at line-end))))
-             (when ov
-               (delete-overlay ov)
-               t))
-      (pe/up-element-internal))))
-
-;; FIXME: The behaviour when point is immediately after an overlay is clumsy. I
-;; should probably change it to return nil, and use `es-line-folded-p' when it
-;; is needed.
+    (unless (pe/at-directory-p)
+      (pe/up-element-prog))
+    (pe/folds-add (pe/get-filename))
+    (mapc 'delete-overlay
+          (cl-remove-if-not
+           (lambda (ov)
+             (overlay-get ov 'is-pe-hider))
+           (overlays-at (line-end-position))
+           ))))
 
 (defun pe/folded-p ()
   "Will return t, at a folded directory, or a folded file."
   (let (( ovs (save-excursion
                 (goto-char (es-total-line-beginning-position))
-                (goto-char (line-end-position))
-                (overlays-at (point)))))
+                (overlays-at (line-end-position)))))
     (cl-some (lambda (ov)
                (overlay-get ov 'is-pe-hider))
              ovs)))
 
 (cl-defun pe/fold ()
+  "Fold current directory. Will also fold any open subdirectories."
   (interactive)
   (when (or (looking-at-p ".*\n?\\'")   ; Last line
-            (pe/folded-p))
+            (pe/folded-p)
+            (not (pe/at-directory-p)))
     (cl-return-from pe/fold))
   (cl-labels (( fold-this-line ()
                 (let* (( indent
@@ -525,26 +516,26 @@ Does nothing on an open line, or on a line that isn't a directory."
                                (point-max))))))
                   (pe/make-hiding-overlay (line-end-position 1)
                                           end))))
-    (let* (( root (pe/user-get-filename))
-           ( descendant-list (pe/folds-remove root)))
-      (save-excursion
-        (let* ((root-point (save-excursion (pe/goto-file root)))
-               (locations-to-fold (list root-point)))
-          (cl-assert root-point nil
-                     "pe/goto-file returned nil for %s"
-                     root)
-          (cl-dolist (path descendant-list)
-            (cl-pushnew (pe/goto-file path) locations-to-fold)
-            (cl-loop (pe/up-element)
-                     (if (or (<= (point) root-point)
-                             (memq (point) locations-to-fold))
-                         (cl-return)
-                       (cl-pushnew (point) locations-to-fold)))
-            )
-          (cl-dolist (location locations-to-fold)
-            (goto-char location)
-            (fold-this-line))
-          )))))
+    (save-excursion
+      (let* (( root (pe/user-get-filename))
+             ( descendant-list (pe/folds-remove root))
+             ( root-point (save-excursion (pe/goto-file root)))
+             ( locations-to-fold (list root-point)))
+        (cl-assert root-point nil
+                   "pe/goto-file returned nil for %s"
+                   root)
+        (cl-dolist (path descendant-list)
+          (cl-pushnew (pe/goto-file path) locations-to-fold)
+          (cl-loop (pe/up-element)
+                   (if (or (<= (point) root-point)
+                           (memq (point) locations-to-fold))
+                       (cl-return)
+                     (cl-pushnew (point) locations-to-fold)))
+          )
+        (cl-dolist (location locations-to-fold)
+          (goto-char location)
+          (fold-this-line))
+        ))))
 
 (defun pe/fold-all ()
   (interactive)
@@ -590,7 +581,7 @@ Does nothing on an open line, or on a line that isn't a directory."
   (setq arg (or arg 1))
   (pe/forward-element (- arg)))
 
-(defun pe/up-element-internal ()
+(defun pe/up-element-prog ()
   (let (( indentation
           (es-current-character-indentation)))
     (and (cl-plusp indentation)
@@ -603,13 +594,6 @@ Does nothing on an open line, or on a line that isn't a directory."
 (defun pe/goto-top ()
   (interactive)
   (re-search-backward "^[^\t]" nil t))
-
-(defun pe/up-element ()
-  "Goto the parent element of the file at point.
-Joined directories will be traversed as one."
-  (interactive)
-  (goto-char (es-total-line-beginning-position))
-  (pe/up-element-internal))
 
 ;;; * Helm
 
@@ -749,6 +733,14 @@ Joined directories will be traversed as one."
         ( (not (pe/folded-p)))
         ( t (pe/unfold-prog))))
 
+(defun pe/up-element ()
+  "Goto the parent element of the file at point.
+Joined directories will be traversed as one. In programs use
+ `pe/up-element-prog' instead."
+  (interactive)
+  (goto-char (es-total-line-beginning-position))
+  (pe/up-element-prog))
+
 (defun pe/tab (&optional arg)
   "Toggle folding at point.
 With a prefix argument, unfold all children."
@@ -797,7 +789,7 @@ With a prefix argument, unfold all children."
 
 (defun pe/occur-mode-find-occurrence-hook ()
   (save-excursion
-    (pe/up-element-internal)
+    (pe/up-element-prog)
     (pe/unfold-prog)))
 
 ;;; * Main entry points
@@ -836,7 +828,6 @@ With a prefix argument, unfold all children."
                     (with-current-buffer project-explorer-buffer
                       pe/project-root))
              :test 'string-equal)))
-
 
 (defun pe/show-buffer-in-side-window (buffer)
   (let* (( project-explorer-buffers
