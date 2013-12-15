@@ -616,6 +616,8 @@ Set once, when the buffer is first created.")
     (kbd "u") 'pe/up-element
     (kbd "a") 'pe/goto-top
     (kbd "d") 'pe/set-directory
+    (kbd "+") 'pe/create-directory
+    (kbd "-") 'pe/delete-directory
     (kbd "TAB") 'pe/tab
     (kbd "M-}") 'pe/forward-element
     (kbd "M-{") 'pe/backward-element
@@ -812,17 +814,42 @@ Set once, when the buffer is first created.")
    (let ((file-name (pe/user-get-filename)))
      (list (read-file-name
             "Set directory to: "
-            (if (file-directory-p file-name)
-                file-name
-              (file-name-directory
-               (directory-file-name
-                file-name)))))))
+            (pe/get-current-directory file-name)))))
   (unless (file-directory-p dir)
     (user-error "\"%s\" is not a directory"
                 dir))
   (setq dir (file-name-as-directory dir)
         default-directory (expand-file-name dir))
   (revert-buffer))
+
+(defun pe/create-directory (dir)
+  "Create a directory relative to the current directory at point, or the parent directory of the file at point"
+  (interactive
+   (list (read-directory-name
+          "Create Directory: "
+          (pe/get-current-directory (pe/get-filename)))))
+  (unless (eq nil dir)
+    (progn
+      (make-directory dir t)
+      (pe/revert-buffer))))
+
+(defun pe/delete-directory ()
+  "Recursively delete the current directory at point, or the parent directory of the file at point"
+  (interactive)
+  (let ((dir (pe/get-current-directory (pe/get-filename))))
+    (if (y-or-n-p
+         (concat "Are you sure you want to delete " dir "?"))
+        (progn
+          (delete-directory dir t)
+          (pe/revert-buffer)))))
+
+(defun pe/get-current-directory (file-name)
+  "Get the current directory at point, or the parent directory of the file at point"
+  (if (file-directory-p file-name)
+      file-name
+    (file-name-directory
+     (directory-file-name
+      file-name))))
 
 (defun pe/find-file ()
   "Open the file or directory at point."
