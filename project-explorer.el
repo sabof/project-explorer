@@ -714,8 +714,7 @@ Does nothing on an open line."
 (defun pe/find-file ()
   "Open the file or directory at point."
   (interactive)
-  (let ((file-name (pe/user-get-filename))
-        (win (cadr (window-list))))
+  (let ((file-name (pe/user-get-filename)))
     (pe/show-buffer
      (find-file-noselect file-name))))
 
@@ -886,7 +885,7 @@ File name defaults to `buffer-file-name'"
 
 ;;; * Core
 
-(defun pe/set-tree (buffer data)
+(defun pe/set-tree (buffer data &optional refresh)
   "Called after data retrieval is complete.
 Redraws the tree based on DATA, and tries to restore open folds."
   (with-current-buffer buffer
@@ -952,10 +951,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
            nil                          ; cached data esists
            )
       nil                               ; get cache
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (delete-all-overlays)
-      (insert "Searching for files...")))
+    )
   (setq-local revert-buffer-function
               'pe/revert-buffer)
   (setq-local tab-width 2)
@@ -1006,14 +1002,23 @@ outside of the project's root."
                (directory-file-name
                 file-name)))))))
   (unless (file-directory-p dir)
-    (user-error "\"%s\" is not a directory"
-                dir))
+    (funcall (if (called-interactively-p 'any)
+                 'user-error 'error)
+             "\"%s\" is not a directory" dir))
+
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    (delete-all-overlays)
+    (insert "Searching for files..."))
+
   (setq dir (file-name-as-directory dir)
         default-directory (expand-file-name dir))
-  (revert-buffer))
+  (funcall pe/directory-files-function
+           default-directory
+           (apply-partially 'pe/set-tree (current-buffer))))
 
 (cl-defun project-explorer-open ()
-  "Show the `project-explorer-buffer', of the current project."
+  "Show or create the project explorer for the current project."
   (interactive)
   (let* (( origin-file-name
            (if (derived-mode-p 'dired-mode)
