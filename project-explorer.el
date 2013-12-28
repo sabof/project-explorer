@@ -55,7 +55,9 @@
 
 (defvar pe/async-interval 0.5)
 (defvar pe/cache-enabled t)
-(defvar pe/auto-refresh-cache t)
+(defvar pe/auto-refresh-cache t
+  "Start a refresh when a cached listing is used.
+The feature is available only for asynchronous backends.")
 (defvar pe/cache-dir
   (concat (file-name-as-directory
            user-emacs-directory)
@@ -253,8 +255,7 @@ Directories first, then alphabetically."
                                      (with-current-buffer buffer
                                        (setf (nth iter level)
                                              (pe/get-directory-tree-async
-                                              dir done-func root-level))
-                                       (push level pe/debug-list))))
+                                              dir done-func root-level)))))
                                  pe/queue)
                            iter)
                        file)))
@@ -1063,7 +1064,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
     (kbd "f") 'pe/find-file
     (kbd "w") 'pe/copy-file-name-as-kill))
 
-(defun pe/change-directory (dir)
+(cl-defun pe/change-directory (dir)
   "Changes the root directory of the project explorer.
 The buffer will remain attached to it's project, even if the new directory is
 outside of the project's root."
@@ -1081,13 +1082,22 @@ outside of the project's root."
                  'user-error 'error)
              "\"%s\" is not a directory" dir))
 
+  (when (equal (expand-file-name dir) default-directory)
+    (cl-return-from pe/change-directory))
+
+  (and pe/reverting
+       (get pe/directory-files-function
+            'pe/cancel)
+       (funcall (get pe/directory-files-function
+                     'pe/cancel)))
+
   (setq dir (file-name-as-directory dir)
         default-directory (expand-file-name dir))
 
   (let (( inhibit-read-only t)
         ( cache (and pe/cache-enabled
-                     pe/auto-refresh-cache
-                     (get pe/directory-files-function 'pe/async)
+                     (get pe/directory-files-function
+                          'pe/async)
                      (pe/cache-load))))
     (erase-buffer)
     (delete-all-overlays)
@@ -1097,13 +1107,17 @@ outside of the project's root."
           (pe/set-tree (current-buffer) 'directory-change pe/data))
       (insert "Searching for files..."))
 
-    (setq pe/reverting t)
-    (funcall pe/directory-files-function
-             default-directory
-             (apply-partially 'pe/set-tree (current-buffer)
-                              (if cache
-                                  'refresh
-                                'directory-change)))))
+    (when (or (not cache)
+              (and (get pe/directory-files-function
+                        'pe/async)
+                   pe/auto-refresh-cache))
+      (setq pe/reverting t)
+      (funcall pe/directory-files-function
+               default-directory
+               (apply-partially 'pe/set-tree (current-buffer)
+                                (if cache
+                                    'refresh
+                                  'directory-change))))))
 
 (cl-defun project-explorer-open ()
   "Show or create the project explorer for the current project."
