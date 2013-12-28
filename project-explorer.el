@@ -48,21 +48,47 @@
   "A project explorer sidebar."
   :group 'convenience)
 
-(defvar pe/directory-files-function
-  'pe/get-directory-tree-async)
+(defcustom pe/directory-files-function
+  'pe/get-directory-tree-async
+  "Backend used for tree retrieval"
+  :group 'project-explorer
+  :type '(radio
+          (const :tag "External (GNU find)" pe/get-directory-tree-find)
+          (const :tag "Internal (sync)" pe/get-directory-tree-simple)
+          (const :tag "Internal (async)" pe/get-directory-tree-async)))
 
-(defvar pe/async-interval 0.5)
-(defvar pe/cache-enabled t)
-(defvar pe/auto-refresh-cache t
+(defcustom pe/get-directory-tree-async-interval 0.5
+  "Interval between invocations of `pe/get-directory-tree-async'.
+A smaller number will make retrievals faster, but also more noticable.
+Only has effect when `pe/directory-files-function' is set to
+`pe/get-directory-tree-async'."
+  :group 'project-explorer
+  :type 'float)
+
+(defcustom pe/cache-enabled t
+  "Whether to use cache."
+  :group 'project-explorer
+  :type 'boolean)
+
+(defcustom pe/auto-refresh-cache t
   "Start a refresh when a cached listing is used.
-The feature is available only for asynchronous backends.")
-(defvar pe/cache-dir
+The feature is available only for asynchronous backends."
+  :group 'project-explorer
+  :type 'boolean)
+
+(defcustom pe/cache-dir
   (concat (file-name-as-directory
            user-emacs-directory)
-          "project-explorer-cache/"))
+          "project-explorer-cache/")
+  "Directory where cached trees will be stored."
+  :group 'project-explorer
+  :type 'string)
 
-(defvar pe/get-directory-tree-find-command
-  "find . \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) ")
+(defcustom pe/get-directory-tree-find-command
+  "find . \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
+  "Command to use for `pe/get-directory-tree-find'"
+  :group 'project-explorer
+  :type 'string)
 
 (defcustom pe/side 'left
   "On which side to display the sidebar."
@@ -96,6 +122,13 @@ Directories matching this regular expression won't be traversed."
           (const :tag "Show all files" nil)
           (string :tag "Files matching this regex won't be shown")))
 
+(defcustom pe/project-root-function
+  'pe/project-root-function-default
+  "A function that determines the project root.
+Called with no arguments, with the originating buffer as current."
+  :group 'project-explorer
+  :type 'symbol)
+
 (defface pe/file-face
     '((t (:inherit default)))
   "Face used for regular files in project-explorer sidebar."
@@ -105,16 +138,6 @@ Directories matching this regular expression won't be traversed."
     '((t (:inherit dired-directory)))
   "Face used for directories in project-explorer sidebar."
   :group 'project-explorer)
-
-(defvar pe/project-root-function
-  (lambda ()
-    (expand-file-name
-     (or (and (fboundp 'projectile-project-root)
-              (projectile-project-root))
-         (locate-dominating-file default-directory ".git")
-         default-directory)))
-  "A function that determines the project root.
-Called with no arguments, with the originating buffer as current.")
 
 ;;; * Internal variables
 
@@ -132,6 +155,13 @@ Set once, when the buffer is first created.")
 (defvar-local pe/get-directory-tree-async-timer nil)
 
 ;;; * Backends
+
+(defun pe/project-root-function-default ()
+  (expand-file-name
+   (or (and (fboundp 'projectile-project-root)
+            (projectile-project-root))
+       (locate-dominating-file default-directory ".git")
+       default-directory)))
 
 (cl-defun pe/compress-tree (branch)
   (cond ( (not (consp branch))
@@ -254,8 +284,8 @@ Directories first, then alphabetically."
                        file)))
     (setq pe/get-directory-tree-async-timer
           (if pe/queue
-              (run-with-idle-timer pe/async-interval nil (pop pe/queue))
-            (run-with-idle-timer pe/async-interval nil done-func root-level)))
+              (run-with-idle-timer pe/get-directory-tree-async-interval nil (pop pe/queue))
+            (run-with-idle-timer pe/get-directory-tree-async-interval nil done-func root-level)))
     level))
 
 (put 'pe/get-directory-tree-async 'pe/async t)
@@ -1087,8 +1117,6 @@ outside of the project's root."
 
   (let (( inhibit-read-only t)
         ( cache (and pe/cache-enabled
-                     (get pe/directory-files-function
-                          'pe/async)
                      (pe/cache-load))))
     (erase-buffer)
     (delete-all-overlays)
