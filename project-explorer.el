@@ -295,18 +295,27 @@ Directories first, then alphabetically."
 
 (defun pe/cache-save ()
   (cl-assert pe/project-root)
-  (let ((cache-file-name (pe/cache-make-filename default-directory))
-        (data pe/data))
+  (let (( cache-file-name (pe/cache-make-filename default-directory))
+        ( data pe/data))
+    (when (cl-assoc default-directory pe/cache-alist
+                    :test 'string-equal)
+      (setq pe/cache-alist
+            (cl-remove default-directory
+                       pe/cache-alist
+                       :key 'car
+                       :test 'string-equal)))
     (unless (file-exists-p (file-name-as-directory pe/cache-dir))
       (make-directory pe/cache-dir t))
     (with-temp-buffer
       (print data (current-buffer))
-      (write-region nil nil cache-file-name nil 'silent)))
-  )
+      (write-region nil nil cache-file-name nil 'silent))
+    (setq pe/cache-alist (acons default-directory data
+                                pe/cache-alist))))
 
 (cl-defun pe/cache-load ()
   (cl-assert pe/project-root)
-  (let ((from-alist (cl-assoc default-directory pe/cache-alist)))
+  (let (( from-alist (cl-assoc default-directory pe/cache-alist
+                               :test 'string-equal)))
     (when (and from-alist (cdr from-alist))
       (cl-return-from pe/cache-load (cdr from-alist))))
   (let ((cache-file-name (pe/cache-make-filename default-directory))
@@ -918,57 +927,67 @@ File name defaults to `buffer-file-name'"
 
 ;;; * Core
 
-(defun pe/set-tree (buffer data &optional refresh)
+(defun pe/set-tree (buffer type data)
   "Called after data retrieval is complete.
 Redraws the tree based on DATA, and tries to restore open folds."
-  (with-current-buffer buffer
-    (let* (( window-start (window-start))
-           ( starting-column (current-column))
-           ;; Won't behave correctly with pe/set-directory
-           ( used-buffer pe/data)
-           ( starting-name
-             (and used-buffer
-                  (let ((\default-directory
-                         (or pe/previous-directory
-                             default-directory)))
-                    (pe/get-filename))))
-           ( switching
-             (not (string-equal pe/previous-directory
-                                default-directory))))
+  (let ((user-buffer (current-buffer)))
+    (with-current-buffer buffer
+      (let* (( window-start (window-start))
+             ( starting-column (current-column))
+             ( starting-name
+               (and pe/data
+                    (let ((\default-directory
+                           (or pe/previous-directory
+                               default-directory)))
+                      (pe/get-filename))))
+             )
 
-      (setq pe/data (funcall (if pe/inline-folders
-                                 'pe/compress-tree
-                               'identity)
-                             (pe/sort data)))
+        (setq pe/data data)
 
-      (when pe/cache-enabled
-        (pe/cache-save))
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (delete-all-overlays)
-        (pe/print-tree pe/data)
-        (font-lock-fontify-buffer)
-        (goto-char (point-min)))
+        (when pe/cache-enabled
+          (pe/cache-save))
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (delete-all-overlays)
+          (pe/print-tree (funcall (if pe/inline-folders
+                                      'pe/compress-tree
+                                    'identity)
+                                  (pe/sort data)))
+          (font-lock-fontify-buffer)
+          (goto-char (point-min)))
 
-      (progn                            ; Restore state
-        (pe/folds-restore)
-        (set-window-start nil window-start)
-        (and starting-name
-             (pe/goto-file starting-name nil t)
-             (move-to-column starting-column)))
+        ;; When type is refresh
+        (when (eq type 'refresh)
+          (pe/folds-restore)
+          (set-window-start nil window-start)
+          (and starting-name
+               (pe/goto-file starting-name nil t)
+               (move-to-column starting-column)))
 
-      (setq pe/previous-directory default-directory
-            pe/helm-cache nil
-            pe/reverting nil)
+        (when (eq type 'directory-change)
+          (set-window-start nil (point-min))
+          (let ((file-name
+                 (with-current-buffer user-buffer
+                   (if (eq major-mode 'dired-mode)
+                       default-directory
+                     buffer-file-name))))
+            (when file-name
+              (pe/show-file file-name))
+            ))
 
-      ;; Let caller hanlde those?
+        (setq pe/previous-directory default-directory
+              pe/helm-cache nil
+              pe/reverting nil)
 
-      ;; (when pe/after-set-tree-function
-      ;;   (funcall pe/after-set-tree-function)
-      ;;   (setq pe/after-set-tree-function))
+        ;; Let caller hanlde those?
 
-      (when (and used-buffer (not switching))
-        (message "Refresh complete")))))
+        ;; (when pe/after-set-tree-function
+        ;;   (funcall pe/after-set-tree-function)
+        ;;   (setq pe/after-set-tree-function))
+
+        (when (eq type 'refresh)
+          ;; (and used-buffer (not switching))
+          (message "Refresh complete"))))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
   (if pe/reverting
@@ -976,7 +995,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
     (setq pe/reverting t))
   (funcall pe/directory-files-function
            default-directory
-           (apply-partially 'pe/set-tree (current-buffer))))
+           (apply-partially 'pe/set-tree (current-buffer) 'refresh)))
 
 (define-derived-mode project-explorer-mode special-mode
     "Project explorer"
@@ -992,7 +1011,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
   (es-define-keys project-explorer-mode-map
     (kbd "u") 'pe/up-element
     (kbd "a") 'pe/goto-top
-    (kbd "d") 'pe/set-directory
+    (kbd "d") 'pe/change-directory
     (kbd "TAB") 'pe/tab
     (kbd "M-}") 'pe/forward-element
     (kbd "M-{") 'pe/backward-element
@@ -1022,7 +1041,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
   (font-lock-add-keywords
    'project-explorer-mode '(("^.+/$" (0 'pe/directory-face append)))))
 
-(defun pe/set-directory (dir)
+(defun pe/change-directory (dir)
   "Changes the root directory of the project explorer.
 The buffer will remain attached to it's project, even if the new directory is
 outside of the project's root."
@@ -1053,18 +1072,15 @@ outside of the project's root."
     (if cache
         (progn
           (setq pe/data cache)
-          (let ((inhibit-read-only t))
-            (erase-buffer)
-            (delete-all-overlays)
-            (pe/print-tree pe/data)
-            (font-lock-fontify-buffer)
-            (goto-char (point-min))))
-      (insert "Searching for files...")))
+          (pe/set-tree (current-buffer) 'directory-change pe/data))
+      (insert "Searching for files..."))
 
-
-  (funcall pe/directory-files-function
-           default-directory
-           (apply-partially 'pe/set-tree (current-buffer))))
+    (funcall pe/directory-files-function
+             default-directory
+             (apply-partially 'pe/set-tree (current-buffer)
+                              (if cache
+                                  'refresh
+                                'directory-change)))))
 
 (cl-defun project-explorer-open ()
   "Show or create the project explorer for the current project."
@@ -1094,7 +1110,7 @@ outside of the project's root."
                  (setq default-directory
                        (setq pe/project-root
                              project-root))
-                 (revert-buffer)
+                 (pe/change-directory default-directory)
                  (current-buffer)
                  ))))
     (pe/show-buffer-in-side-window project-explorer-buffer)
