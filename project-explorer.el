@@ -14,8 +14,6 @@
 ;; The latest version, and all the relevant information can be found there.
 
 ;;; Todo:
-;; * Cancel directory retrievals in progress, when changing directory, or when
-;; the buffer is killed.
 ;; * Add status bar
 
 ;;; License:
@@ -51,7 +49,7 @@
   :group 'convenience)
 
 (defvar pe/directory-files-function
-  'pe/get-directory-tree-find)
+  'pe/get-directory-tree-async)
 
 (defvar pe/async-interval 0.5)
 (defvar pe/cache-enabled t)
@@ -61,7 +59,7 @@ The feature is available only for asynchronous backends.")
 (defvar pe/cache-dir
   (concat (file-name-as-directory
            user-emacs-directory)
-          "project-explorer/"))
+          "project-explorer-cache/"))
 
 (defvar pe/get-directory-tree-find-command
   "find . \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) ")
@@ -117,11 +115,6 @@ Directories matching this regular expression won't be traversed."
          default-directory)))
   "A function that determines the project root.
 Called with no arguments, with the originating buffer as current.")
-
-(defvar pe/cache-dir
-  (concat (file-name-as-directory
-           user-emacs-directory)
-          "project-explorer-cache/"))
 
 ;;; * Internal variables
 
@@ -264,6 +257,7 @@ Directories first, then alphabetically."
               (run-with-idle-timer pe/async-interval nil (pop pe/queue))
             (run-with-idle-timer pe/async-interval nil done-func root-level)))
     level))
+
 (put 'pe/get-directory-tree-async 'pe/async t)
 
 (defun pe/get-directory-tree-async-cancel ()
@@ -1081,9 +1075,6 @@ outside of the project's root."
     (funcall (if (called-interactively-p 'any)
                  'user-error 'error)
              "\"%s\" is not a directory" dir))
-
-  (when (equal (expand-file-name dir) default-directory)
-    (cl-return-from pe/change-directory))
 
   (and pe/reverting
        (get pe/directory-files-function
