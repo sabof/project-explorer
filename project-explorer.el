@@ -966,14 +966,18 @@ Redraws the tree based on DATA, and tries to restore open folds."
 
         (when (eq type 'directory-change)
           (set-window-start nil (point-min))
-          (let ((file-name
-                 (with-current-buffer user-buffer
-                   (if (eq major-mode 'dired-mode)
-                       default-directory
-                     buffer-file-name))))
-            (when file-name
-              (pe/show-file file-name))
-            ))
+          (when pe/goto-current-file-on-open
+            (let ((file-name
+                   (with-current-buffer user-buffer
+                     (if (derived-mode-p 'dired-mode)
+                         (expand-file-name
+                          (dired-current-directory))
+                       (when (buffer-file-name)
+                         (expand-file-name
+                          (buffer-file-name)))))))
+              (when file-name
+                (pe/show-file-prog file-name))
+              )))
 
         (setq pe/previous-directory default-directory
               pe/helm-cache nil
@@ -1114,7 +1118,10 @@ outside of the project's root."
                  (current-buffer)
                  ))))
     (pe/show-buffer-in-side-window project-explorer-buffer)
-    (when (and origin-file-name pe/goto-current-file-on-open)
+    (when (and origin-file-name
+               pe/goto-current-file-on-open
+               (with-current-buffer project-explorer-buffer
+                 pe/data))
       (with-current-buffer project-explorer-buffer
         (face-remap-add-relative 'default 'pe/file-face)
         (pe/show-file-prog origin-file-name)))
