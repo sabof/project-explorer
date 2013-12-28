@@ -1003,10 +1003,10 @@ File name defaults to `buffer-file-name'"
   "Called after data retrieval is complete.
 Redraws the tree based on DATA, and tries to restore open folds."
   (let ((user-buffer (current-buffer)))
-    (with-current-buffer buffer
-      (with-selected-window
-          (or (get-buffer-window buffer)
-              (selected-window))
+    (with-selected-window
+        (or (get-buffer-window buffer)
+            (selected-window))
+      (with-current-buffer buffer
         (let* (( window-start (window-start))
                ( starting-column (current-column))
                ( starting-name
@@ -1015,7 +1015,10 @@ Redraws the tree based on DATA, and tries to restore open folds."
                              (or pe/previous-directory
                                  default-directory)))
                         (pe/get-filename)))))
-          (cl-assert pe/project-root)
+
+          (cl-assert pe/project-root
+                     nil "Current buffer: %s\nbuffer: %s"
+                     (current-buffer) buffer)
 
           (setq pe/data data)
 
