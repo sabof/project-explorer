@@ -111,6 +111,10 @@ Directories matching this regular expression won't be traversed."
   "A function that determines the project root.
 Called with no arguments, with the originating buffer as current.")
 
+(defvar pe/cache-dir
+  (concat (file-name-as-directory
+           user-emacs-directory)
+          "project-explorer-cache/"))
 ;;; * Internal variables
 
 (defvar pe/cache-alist nil)
@@ -285,9 +289,38 @@ Directories first, then alphabetically."
 (defun pe/cache-make-filename (filename)
   (concat
    (file-name-as-directory
-    dc/cache-dir)
+    pe/cache-dir)
    (file-name-nondirectory
     (make-backup-file-name filename))))
+
+(defun pe/cache-save ()
+  (cl-assert pe/project-root)
+  (let ((cache-file-name (pe/cache-make-filename default-directory))
+        (data pe/data))
+    (unless (file-exists-p (file-name-as-directory pe/cache-dir))
+      (make-directory pe/cache-dir t))
+    (with-temp-buffer
+      (print data (current-buffer))
+      (write-region nil nil cache-file-name nil 'silent)))
+  )
+
+(cl-defun pe/cache-load ()
+  (cl-assert pe/project-root)
+  (let ((from-alist (cl-assoc default-directory pe/cache-alist)))
+    (when (and from-alist (cdr from-alist))
+      (cl-return-from pe/cache-load (cdr from-alist))))
+  (let ((cache-file-name (pe/cache-make-filename default-directory))
+        cache-content)
+    (when (file-exists-p cache-file-name)
+      (setq cache-content
+            (with-temp-buffer
+              (insert-file-contents cache-file-name)
+              (goto-char (point-min))
+              (read (current-buffer))))
+      (setq pe/cache-alist (acons default-directory cache-content
+                                  pe/cache-alist))
+      cache-content))
+  )
 
 ;; (defun pe/get-directory-tree-find-cached (dir done-func)
 ;;   )
@@ -344,7 +377,7 @@ Directories first, then alphabetically."
     (goto-char (line-beginning-position))
     (looking-at-p ".*/$")))
 
-(cl-defun pe/print-indented-tree
+(cl-defun pe/print-tree
     (branch &optional (depth -1))
   (let (start)
     (cond ( (stringp branch)
@@ -356,7 +389,7 @@ Directories first, then alphabetically."
                         (car branch) "/\n")
                 (setq start (point)))
               (cl-dolist (item (cdr branch))
-                (pe/print-indented-tree item (1+ depth)))
+                (pe/print-tree item (1+ depth)))
               (when (and start (> (point) start))
                 ;; (message "ran %s %s" start (point))
                 (pe/make-hiding-overlay
@@ -903,16 +936,17 @@ Redraws the tree based on DATA, and tries to restore open folds."
              (not (string-equal pe/previous-directory
                                 default-directory))))
 
-      (setq pe/data data)
+      (setq pe/data (funcall (if pe/inline-folders
+                                 'pe/compress-tree
+                               'identity)
+                             (pe/sort data)))
 
+      (when pe/cache-enabled
+        (pe/cache-save))
       (let ((inhibit-read-only t))
         (erase-buffer)
         (delete-all-overlays)
-        (pe/print-indented-tree
-         (funcall (if pe/inline-folders
-                      'pe/compress-tree
-                    'identity)
-                  (pe/sort data)))
+        (pe/print-tree pe/data)
         (font-lock-fontify-buffer)
         (goto-char (point-min)))
 
@@ -1006,13 +1040,28 @@ outside of the project's root."
                  'user-error 'error)
              "\"%s\" is not a directory" dir))
 
-  (let ((inhibit-read-only t))
-    (erase-buffer)
-    (delete-all-overlays)
-    (insert "Searching for files..."))
-
   (setq dir (file-name-as-directory dir)
         default-directory (expand-file-name dir))
+
+  (let (( inhibit-read-only t)
+        ( cache (and pe/cache-enabled
+                     pe/auto-refresh-cache
+                     (get pe/directory-files-function 'pe/async)
+                     (pe/cache-load))))
+    (erase-buffer)
+    (delete-all-overlays)
+    (if cache
+        (progn
+          (setq pe/data cache)
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (delete-all-overlays)
+            (pe/print-tree pe/data)
+            (font-lock-fontify-buffer)
+            (goto-char (point-min))))
+      (insert "Searching for files...")))
+
+
   (funcall pe/directory-files-function
            default-directory
            (apply-partially 'pe/set-tree (current-buffer))))
