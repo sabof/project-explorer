@@ -134,6 +134,7 @@ Set once, when the buffer is first created.")
 (defvar-local pe/previous-directory nil)
 (defvar-local pe/helm-cache nil)
 (defvar-local pe/reverting nil)
+(defvar-local pe/get-directory-tree-async-timer nil)
 
 ;;; * Backends
 
@@ -190,16 +191,27 @@ Directories first, then alphabetically."
                           (cl-callf concat output string)))
     (set-process-sentinel process
                           (lambda (process change)
-                            ;; FIXME: Do nothing when the process is killed
-                            (let (( result
-                                    (pe/paths-to-tree
-                                     (split-string output "\n" t))))
-                              (setcar result (file-name-nondirectory
-                                              (directory-file-name
-                                               dir)))
-                              (funcall done-func result))))
+                            (if (equal change "finished\n")
+                                (let (( result
+                                        (pe/paths-to-tree
+                                         (split-string output "\n" t))))
+                                  (setcar result (file-name-nondirectory
+                                                  (directory-file-name
+                                                   dir)))
+                                  (funcall done-func result))
+                              (setq pe/reverting nil))))
     ))
 (put 'pe/get-directory-tree-find 'pe/async t)
+
+(defun pe/get-directory-tree-find-cancel ()
+  (let ((process (get-buffer-process (current-buffer))))
+    (when process
+      (kill-process process)))
+  (setq pe/reverting nil))
+
+(put 'pe/get-directory-tree-find
+     'pe/cancel
+     'pe/get-directory-tree-find-cancel)
 
 (defun pe/get-directory-tree-simple (dir done-func)
   (cl-labels
@@ -246,11 +258,22 @@ Directories first, then alphabetically."
                                  pe/queue)
                            iter)
                        file)))
-    (if pe/queue
-        (run-with-idle-timer pe/async-interval nil (pop pe/queue))
-      (run-with-idle-timer pe/async-interval nil done-func root-level))
+    (setq pe/get-directory-tree-async-timer
+          (if pe/queue
+              (run-with-idle-timer pe/async-interval nil (pop pe/queue))
+            (run-with-idle-timer pe/async-interval nil done-func root-level)))
     level))
 (put 'pe/get-directory-tree-async 'pe/async t)
+
+(defun pe/get-directory-tree-async-cancel ()
+  (when (timerp pe/get-directory-tree-async-timer)
+    (cancel-timer pe/get-directory-tree-async-timer))
+  (setq pe/queue nil)
+  (setq pe/reverting nil))
+
+(put 'pe/get-directory-tree-async
+     'pe/cancel
+     'pe/get-directory-tree-async-cancel)
 
 (defun pe/path-to-list (path)
   (let* (( normalized-path
@@ -336,9 +359,6 @@ Directories first, then alphabetically."
                                   pe/cache-alist))
       cache-content))
   )
-
-;; (defun pe/get-directory-tree-find-cached (dir done-func)
-;;   )
 
 ;;; * Fold data
 
@@ -991,10 +1011,13 @@ Redraws the tree based on DATA, and tries to restore open folds."
           (message "Refresh complete"))))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
-  ;; FIXME: Restart instead
-  (if pe/reverting
-      (user-error "Revert already in progress")
-    (setq pe/reverting t))
+  (when pe/reverting
+    (if (get pe/directory-files-function 'pe/cancel)
+        (if (y-or-n-p "A refresh is already in progress. Cancel it?")
+            (funcall (get pe/directory-files-function 'pe/cancel))
+          (cl-return-from pe/revert-buffer))
+      (user-error "Revert already in progress")))
+  (setq pe/reverting t)
   (funcall pe/directory-files-function
            default-directory
            (apply-partially 'pe/set-tree (current-buffer) 'refresh)))
@@ -1074,7 +1097,7 @@ outside of the project's root."
           (pe/set-tree (current-buffer) 'directory-change pe/data))
       (insert "Searching for files..."))
 
-    ;; FIXME: Manage pe/reverting
+    (setq pe/reverting t)
     (funcall pe/directory-files-function
              default-directory
              (apply-partially 'pe/set-tree (current-buffer)
