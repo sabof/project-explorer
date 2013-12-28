@@ -16,6 +16,7 @@
 ;;; Todo:
 ;; * Cancel directory retrievals in progress, when changing directory, or when
 ;; the buffer is killed.
+;; * Add status bar
 
 ;;; License:
 
@@ -119,6 +120,7 @@ Called with no arguments, with the originating buffer as current.")
   (concat (file-name-as-directory
            user-emacs-directory)
           "project-explorer-cache/"))
+
 ;;; * Internal variables
 
 (defvar pe/cache-alist nil)
@@ -132,7 +134,6 @@ Set once, when the buffer is first created.")
 (defvar-local pe/previous-directory nil)
 (defvar-local pe/helm-cache nil)
 (defvar-local pe/reverting nil)
-;; (defvar-local pe/after-set-tree-function nil)
 
 ;;; * Backends
 
@@ -181,14 +182,15 @@ Directories first, then alphabetically."
          ( output "")
          ( process
            (start-process "tree-find"
-                          ;; FIXME: Use the default shell.
-                          buffer "bash" "-c"
+                          buffer shell-file-name
+                          shell-command-switch
                           pe/get-directory-tree-find-command)))
     (set-process-filter process
                         (lambda (process string)
                           (cl-callf concat output string)))
     (set-process-sentinel process
-                          (lambda (&rest ignore)
+                          (lambda (process change)
+                            ;; FIXME: Do nothing when the process is killed
                             (let (( result
                                     (pe/paths-to-tree
                                      (split-string output "\n" t))))
@@ -943,8 +945,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
                     (let ((\default-directory
                            (or pe/previous-directory
                                default-directory)))
-                      (pe/get-filename))))
-             )
+                      (pe/get-filename)))))
 
         (setq pe/data data)
 
@@ -960,7 +961,6 @@ Redraws the tree based on DATA, and tries to restore open folds."
           (font-lock-fontify-buffer)
           (goto-char (point-min)))
 
-        ;; When type is refresh
         (when (eq type 'refresh)
           (pe/folds-restore)
           (set-window-start nil window-start)
@@ -987,17 +987,11 @@ Redraws the tree based on DATA, and tries to restore open folds."
               pe/helm-cache nil
               pe/reverting nil)
 
-        ;; Let caller hanlde those?
-
-        ;; (when pe/after-set-tree-function
-        ;;   (funcall pe/after-set-tree-function)
-        ;;   (setq pe/after-set-tree-function))
-
         (when (eq type 'refresh)
-          ;; (and used-buffer (not switching))
           (message "Refresh complete"))))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
+  ;; FIXME: Restart instead
   (if pe/reverting
       (user-error "Revert already in progress")
     (setq pe/reverting t))
@@ -1080,6 +1074,7 @@ outside of the project's root."
           (pe/set-tree (current-buffer) 'directory-change pe/data))
       (insert "Searching for files..."))
 
+    ;; FIXME: Manage pe/reverting
     (funcall pe/directory-files-function
              default-directory
              (apply-partially 'pe/set-tree (current-buffer)
