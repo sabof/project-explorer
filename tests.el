@@ -129,7 +129,7 @@
                         :test 'equal))
     ))
 
-(ert-deftest pe/print-indented-tree ()
+(ert-deftest pe/print-tree ()
   (let* (( tree '("root"
                   ("node2")
                   ("node1")
@@ -147,7 +147,7 @@ node3/
 ")
          ( result
            (with-temp-buffer
-             (pe/print-indented-tree tree)
+             (pe/print-tree tree)
              (buffer-string))))
     (should (string-equal expected-result
                           result))))

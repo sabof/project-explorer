@@ -202,6 +202,62 @@ Directories first, then alphabetically."
       (not (string-match-p pe/omit-regex name))
     t))
 
+(defun pe/path-to-list (path)
+  (let* (( normalized-path
+           (replace-regexp-in-string "\\\\" "/" path t t))
+         ( split-path (split-string normalized-path "/" t))
+         ( dir-path-p
+           (string-match-p "/$" normalized-path)))
+    (cons (if dir-path-p 'directory 'file)
+          split-path)))
+
+(defun pe/paths-to-tree (paths)
+  (let* (( paths (mapcar 'pe/path-to-list paths))
+         ( add-member (lambda (what where)
+                        (setcdr where (cons what (cdr where)))
+                        what))
+         ( root (list nil))
+         head)
+    (cl-loop for path-raw in paths
+             do
+             (cl-destructuring-bind (type &rest path) path-raw
+               (setq head root)
+               (cl-loop for segment in path
+                        for i = 0 then (1+ i)
+                        for is-last = (= (length path) (1+ i))
+                        do (setq head
+                                 (or (cl-find segment
+                                              (rest head)
+                                              :test 'equal
+                                              :key 'car-safe)
+                                     (funcall add-member
+                                              (if (or (not is-last)
+                                                      (eq type 'directory))
+                                                  (list segment)
+                                                segment)
+                                              head)
+                                     )))))
+    (cadr root)
+    ))
+
+(defun pe/get-directory-tree-simple (dir done-func)
+  (cl-labels
+      ((walker (dir)
+         (let (( files (cl-remove-if
+                        (lambda (file)
+                          (or (member file '("." ".."))
+                              (not (pe/file-interesting-p file))))
+                        (directory-files dir))))
+           (cons (file-name-nondirectory (directory-file-name dir))
+                 (mapcar (lambda (file)
+                           (if (file-directory-p (concat dir file))
+                               (walker (concat dir file "/"))
+                             file))
+                         files)))))
+    (funcall done-func (walker dir))))
+
+;;; ** pe/get-directory-tree-find
+
 (cl-defun pe/get-directory-tree-find (dir done-func)
   (let* (( default-directory dir)
          ( buffer (current-buffer))
@@ -239,21 +295,7 @@ Directories first, then alphabetically."
      'pe/cancel
      'pe/get-directory-tree-find-cancel)
 
-(defun pe/get-directory-tree-simple (dir done-func)
-  (cl-labels
-      ((walker (dir)
-         (let (( files (cl-remove-if
-                        (lambda (file)
-                          (or (member file '("." ".."))
-                              (not (pe/file-interesting-p file))))
-                        (directory-files dir))))
-           (cons (file-name-nondirectory (directory-file-name dir))
-                 (mapcar (lambda (file)
-                           (if (file-directory-p (concat dir file))
-                               (walker (concat dir file "/"))
-                             file))
-                         files)))))
-    (funcall done-func (walker dir))))
+;;; ** pe/get-directory-tree-async
 
 (defun pe/get-directory-tree-async (dir done-func &optional root-level)
   (let* (( inhibit-quit t)
@@ -302,44 +344,6 @@ Directories first, then alphabetically."
 (put 'pe/get-directory-tree-async
      'pe/cancel
      'pe/get-directory-tree-async-cancel)
-
-(defun pe/path-to-list (path)
-  (let* (( normalized-path
-           (replace-regexp-in-string "\\\\" "/" path t t))
-         ( split-path (split-string normalized-path "/" t))
-         ( dir-path-p
-           (string-match-p "/$" normalized-path)))
-    (cons (if dir-path-p 'directory 'file)
-          split-path)))
-
-(defun pe/paths-to-tree (paths)
-  (let* (( paths (mapcar 'pe/path-to-list paths))
-         ( add-member (lambda (what where)
-                        (setcdr where (cons what (cdr where)))
-                        what))
-         ( root (list nil))
-         head)
-    (cl-loop for path-raw in paths
-             do
-             (cl-destructuring-bind (type &rest path) path-raw
-               (setq head root)
-               (cl-loop for segment in path
-                        for i = 0 then (1+ i)
-                        for is-last = (= (length path) (1+ i))
-                        do (setq head
-                                 (or (cl-find segment
-                                              (rest head)
-                                              :test 'equal
-                                              :key 'car-safe)
-                                     (funcall add-member
-                                              (if (or (not is-last)
-                                                      (eq type 'directory))
-                                                  (list segment)
-                                                segment)
-                                              head)
-                                     )))))
-    (cadr root)
-    ))
 
 ;;; ** Caching
 
@@ -578,7 +582,7 @@ Makes adjustments for folding."
     ov))
 
 (cl-defun pe/unfold-prog ()
-  "Register current line as opened,
+  "Register current line as opened,\
 and delete all overlays that might be hiding it.
 Does nothing on an open line."
   (unless (pe/folded-p)
@@ -1147,6 +1151,7 @@ outside of the project's root."
         (progn
           (setq pe/data cache)
           (pe/set-tree (current-buffer) 'directory-change pe/data))
+      (setq pe/data nil)
       (insert "Searching for files..."))
 
     (when (or (not cache)
