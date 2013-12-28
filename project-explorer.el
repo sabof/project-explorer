@@ -76,7 +76,7 @@ The feature is available only for asynchronous backends."
   :group 'project-explorer
   :type 'boolean)
 
-(defcustom pe/cache-dir
+(defcustom pe/cache-directory
   (concat (file-name-as-directory
            user-emacs-directory)
           "project-explorer-cache/")
@@ -226,6 +226,7 @@ Directories first, then alphabetically."
                                   (funcall done-func result))
                               (setq pe/reverting nil))))
     ))
+
 (put 'pe/get-directory-tree-find 'pe/async t)
 
 (defun pe/get-directory-tree-find-cancel ()
@@ -284,8 +285,10 @@ Directories first, then alphabetically."
                        file)))
     (setq pe/get-directory-tree-async-timer
           (if pe/queue
-              (run-with-idle-timer pe/get-directory-tree-async-interval nil (pop pe/queue))
-            (run-with-idle-timer pe/get-directory-tree-async-interval nil done-func root-level)))
+              (run-with-idle-timer pe/get-directory-tree-async-interval
+                                   nil (pop pe/queue))
+            (run-with-idle-timer pe/get-directory-tree-async-interval
+                                 nil done-func root-level)))
     level))
 
 (put 'pe/get-directory-tree-async 'pe/async t)
@@ -323,27 +326,36 @@ Directories first, then alphabetically."
                (cl-loop for segment in path
                         for i = 0 then (1+ i)
                         for is-last = (= (length path) (1+ i))
-                        do
-                        (setq head (or (cl-find segment
-                                                (rest head)
-                                                :test 'equal
-                                                :key 'car-safe)
-                                       (funcall add-member
-                                                (if (or (not is-last)
-                                                        (eq type 'directory))
-                                                    (list segment)
-                                                  segment)
-                                                head)
-                                       )))))
+                        do (setq head
+                                 (or (cl-find segment
+                                              (rest head)
+                                              :test 'equal
+                                              :key 'car-safe)
+                                     (funcall add-member
+                                              (if (or (not is-last)
+                                                      (eq type 'directory))
+                                                  (list segment)
+                                                segment)
+                                              head)
+                                     )))))
     (cadr root)
     ))
 
 ;;; ** Caching
 
+(defun pe/cache-clear ()
+  "Clear local cache, and delete cache files for all directories."
+  (interactive)
+  (setq pe/cache-alist nil)
+  (let ((default-directory pe/cache-directory))
+    (mapc 'delete-file
+          (cl-remove-if (lambda (it) (member it '("." "..")))
+                        (directory-files pe/cache-directory)))))
+
 (defun pe/cache-make-filename (filename)
   (concat
    (file-name-as-directory
-    pe/cache-dir)
+    pe/cache-directory)
    (file-name-nondirectory
     (make-backup-file-name filename))))
 
@@ -358,10 +370,12 @@ Directories first, then alphabetically."
                        pe/cache-alist
                        :key 'car
                        :test 'string-equal)))
-    (unless (file-exists-p (file-name-as-directory pe/cache-dir))
-      (make-directory pe/cache-dir t))
+    (unless (file-exists-p (file-name-as-directory pe/cache-directory))
+      (make-directory pe/cache-directory t))
     (with-temp-buffer
-      (print data (current-buffer))
+      (let ((print-level nil)
+            (print-length nil))
+        (print data (current-buffer)))
       (write-region nil nil cache-file-name nil 'silent))
     (setq pe/cache-alist (acons default-directory data
                                 pe/cache-alist))))
@@ -552,19 +566,20 @@ Makes adjustments for folding."
                     (skip-chars-forward "\t")
                     (- (point) line-beginning)))
          ( priority (- 100 indent)))
-    (mapcar (apply-partially 'apply 'overlay-put ov)
-            `((isearch-open-invisible-temporary
-               pe/isearch-show-temporarily)
-              (isearch-open-invisible pe/isearch-show)
-              (invisible t)
-              (display "...")
-              (is-pe-hider t)
-              (evaporate t)
-              (priority ,priority)))
+    (mapc (apply-partially 'apply 'overlay-put ov)
+          `((isearch-open-invisible-temporary
+             pe/isearch-show-temporarily)
+            (isearch-open-invisible pe/isearch-show)
+            (invisible t)
+            (display "...")
+            (is-pe-hider t)
+            (evaporate t)
+            (priority ,priority)))
     ov))
 
 (cl-defun pe/unfold-prog ()
-  "Register current line as opened, and delete all overlays that might be hiding it.
+  "Register current line as opened,
+and delete all overlays that might be hiding it.
 Does nothing on an open line."
   (unless (pe/folded-p)
     (cl-return-from pe/unfold-prog))
@@ -717,10 +732,11 @@ Does nothing on an open line."
                      (length default-directory)))
                (mapcar (lambda (long-name)
                          (substring long-name default-directory-length))
-                       (remove-if (lambda (name)
-                                    (or (null name)
-                                        (not (string-prefix-p default-directory name))))
-                                  (mapcar 'buffer-file-name buffer-list)))))
+                       (cl-remove-if (lambda (name)
+                                       (or (null name)
+                                           (not (string-prefix-p default-directory
+                                                                 name))))
+                                     (mapcar 'buffer-file-name buffer-list)))))
            ( flattened-file-list
              (cl-remove-if
               (lambda (file-name)
@@ -747,7 +763,8 @@ Does nothing on an open line."
                                                'face
                                                'font-lock-function-name-face)
                                  file-name-nondirectory))
-                             (propertize file-name 'face 'font-lock-keyword-face))
+                             (propertize file-name
+                                         'face 'font-lock-keyword-face))
                      file-name))))
       (nconc (mapcar (apply-partially to-cons t)
                      visited-files)
@@ -983,57 +1000,63 @@ File name defaults to `buffer-file-name'"
 Redraws the tree based on DATA, and tries to restore open folds."
   (let ((user-buffer (current-buffer)))
     (with-current-buffer buffer
-      (let* (( window-start (window-start))
-             ( starting-column (current-column))
-             ( starting-name
-               (and pe/data
-                    (let ((\default-directory
-                           (or pe/previous-directory
-                               default-directory)))
-                      (pe/get-filename)))))
+      (with-selected-window
+          (or (get-buffer-window buffer)
+              (selected-window))
+        (let* (( window-start (window-start))
+               ( starting-column (current-column))
+               ( starting-name
+                 (and pe/data
+                      (let ((\default-directory
+                             (or pe/previous-directory
+                                 default-directory)))
+                        (pe/get-filename)))))
+          (cl-assert pe/project-root)
 
-        (setq pe/data data)
+          (setq pe/data data)
 
-        (when pe/cache-enabled
-          (pe/cache-save))
-        (let ((inhibit-read-only t))
-          (erase-buffer)
-          (delete-all-overlays)
-          (pe/print-tree (funcall (if pe/inline-folders
-                                      'pe/compress-tree
-                                    'identity)
-                                  (pe/sort data)))
-          (font-lock-fontify-buffer)
-          (goto-char (point-min)))
+          (when pe/cache-enabled
+            (pe/cache-save))
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (delete-all-overlays)
+            (pe/print-tree (funcall (if pe/inline-folders
+                                        'pe/compress-tree
+                                      'identity)
+                                    (pe/sort data)))
+            (font-lock-fontify-buffer)
+            (goto-char (point-min)))
 
-        (when (eq type 'refresh)
-          (pe/folds-restore)
-          (set-window-start nil window-start)
-          (and starting-name
-               (pe/goto-file starting-name nil t)
-               (move-to-column starting-column)))
+          (when (eq type 'refresh)
+            (pe/folds-restore)
+            (when (get-buffer-window buffer)
+              (set-window-start nil window-start))
+            (and starting-name
+                 (pe/goto-file starting-name nil t)
+                 (move-to-column starting-column)))
 
-        (when (eq type 'directory-change)
-          (set-window-start nil (point-min))
-          (when pe/goto-current-file-on-open
-            (let ((file-name
-                   (with-current-buffer user-buffer
-                     (if (derived-mode-p 'dired-mode)
-                         (expand-file-name
-                          (dired-current-directory))
-                       (when (buffer-file-name)
-                         (expand-file-name
-                          (buffer-file-name)))))))
-              (when file-name
-                (pe/show-file-prog file-name))
-              )))
+          (when (eq type 'directory-change)
+            (when (get-buffer-window buffer)
+              (set-window-start nil (point-min)))
+            (when pe/goto-current-file-on-open
+              (let ((file-name
+                     (with-current-buffer user-buffer
+                       (if (derived-mode-p 'dired-mode)
+                           (expand-file-name
+                            (dired-current-directory))
+                         (when (buffer-file-name)
+                           (expand-file-name
+                            (buffer-file-name)))))))
+                (when file-name
+                  (pe/show-file-prog file-name))
+                )))
 
-        (setq pe/previous-directory default-directory
-              pe/helm-cache nil
-              pe/reverting nil)
+          (setq pe/previous-directory default-directory
+                pe/helm-cache nil
+                pe/reverting nil)
 
-        (when (eq type 'refresh)
-          (message "Refresh complete"))))))
+          (when (eq type 'refresh)
+            (message "Refresh complete")))))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
   (when pe/reverting
