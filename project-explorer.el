@@ -13,6 +13,10 @@
 ;; The project is hosted at https://github.com/sabof/project-explorer
 ;; The latest version, and all the relevant information can be found there.
 
+;;; Todo:
+;; * Cancel directory retrievals in progress, when changing directory, or when
+;; the buffer is killed.
+
 ;;; License:
 
 ;; This file is NOT part of GNU Emacs.
@@ -1004,14 +1008,19 @@ Redraws the tree based on DATA, and tries to restore open folds."
 (define-derived-mode project-explorer-mode special-mode
     "Project explorer"
     nil
-  (if (and pe/cache-enabled
-           nil                          ; cached data esists
-           )
-      nil                               ; get cache
-    )
   (setq-local revert-buffer-function
               'pe/revert-buffer)
   (setq-local tab-width 2)
+  (setq-local hl-line-range-function
+              'pe/hl-line-range)
+
+  (add-hook 'occur-mode-find-occurrence-hook
+            'pe/occur-mode-find-occurrence-hook
+            nil t)
+  (face-remap-add-relative 'default 'pe/file-face)
+  (font-lock-add-keywords
+   'project-explorer-mode '(("^.+/$" (0 'pe/directory-face append))))
+
   (es-define-keys project-explorer-mode-map
     (kbd "u") 'pe/up-element
     (kbd "a") 'pe/goto-top
@@ -1035,15 +1044,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
     (kbd "s") 'isearch-forward
     (kbd "r") 'isearch-backward
     (kbd "f") 'pe/find-file
-    (kbd "w") 'pe/copy-file-name-as-kill)
-
-  (add-hook 'occur-mode-find-occurrence-hook
-            'pe/occur-mode-find-occurrence-hook
-            nil t)
-  (setq-local hl-line-range-function
-              'pe/hl-line-range)
-  (font-lock-add-keywords
-   'project-explorer-mode '(("^.+/$" (0 'pe/directory-face append)))))
+    (kbd "w") 'pe/copy-file-name-as-kill))
 
 (defun pe/change-directory (dir)
   "Changes the root directory of the project explorer.
@@ -1123,7 +1124,6 @@ outside of the project's root."
                (with-current-buffer project-explorer-buffer
                  pe/data))
       (with-current-buffer project-explorer-buffer
-        (face-remap-add-relative 'default 'pe/file-face)
         (pe/show-file-prog origin-file-name)))
     project-explorer-buffer))
 
