@@ -50,7 +50,7 @@
   "Backend used for tree retrieval"
   :group 'project-explorer
   :type '(radio
-          (const :tag "External (GNU find)" pe/get-directory-tree-find)
+          (const :tag "External (GNU find)" pe/get-directory-tree-external)
           (const :tag "Internal (sync)" pe/get-directory-tree-simple)
           (const :tag "Internal (async)" pe/get-directory-tree-async)))
 
@@ -81,9 +81,9 @@ The feature is available only for asynchronous backends."
   :group 'project-explorer
   :type 'string)
 
-(defcustom pe/get-directory-tree-find-command
+(defcustom pe/get-directory-tree-external-command
   "find . \\( ! -path '*/.*' \\) \\( -type d -printf \"%p/\\n\" , -type f -print \\) "
-  "Command to use for `pe/get-directory-tree-find'"
+  "Command to use for `pe/get-directory-tree-external'"
   :group 'project-explorer
   :type 'string)
 
@@ -271,9 +271,9 @@ Directories first, then alphabetically."
                          files)))))
     (funcall done-func (walker dir))))
 
-;;; ** pe/get-directory-tree-find
+;;; ** pe/get-directory-tree-external
 
-(cl-defun pe/get-directory-tree-find (dir done-func)
+(cl-defun pe/get-directory-tree-external (dir done-func)
   (let* (( default-directory dir)
          ( buffer (current-buffer))
          ( output "")
@@ -281,7 +281,7 @@ Directories first, then alphabetically."
            (start-process "tree-find"
                           buffer shell-file-name
                           shell-command-switch
-                          pe/get-directory-tree-find-command)))
+                          pe/get-directory-tree-external-command)))
     (set-process-filter process
                         (lambda (process string)
                           (cl-callf concat output string)))
@@ -298,17 +298,17 @@ Directories first, then alphabetically."
                               (setq pe/reverting nil))))
     ))
 
-(put 'pe/get-directory-tree-find 'pe/async t)
+(put 'pe/get-directory-tree-external 'pe/async t)
 
-(defun pe/get-directory-tree-find-cancel ()
+(defun pe/get-directory-tree-external-cancel ()
   (let ((process (get-buffer-process (current-buffer))))
     (when process
       (kill-process process)))
   (setq pe/reverting nil))
 
-(put 'pe/get-directory-tree-find
+(put 'pe/get-directory-tree-external
      'pe/cancel
-     'pe/get-directory-tree-find-cancel)
+     'pe/get-directory-tree-external-cancel)
 
 ;;; ** pe/get-directory-tree-async
 

@@ -46,7 +46,7 @@ A tree project explorer.
 
     Indexing backend. One of `pe/get-directory-tree-async' (native,
     asynchronous, slow), `pe/get-directory-tree-simple'(native, synchronous) or
-    `pe/get-directory-tree-find' (extrnal, asynchronus, best, but requires
+    `pe/get-directory-tree-external' (extrnal, asynchronus, best, but requires
     "find" with GNU extensions)
 
 ##### pe/cache-enabled
