@@ -153,6 +153,7 @@ Set once, when the buffer is first created.")
 (defvar-local pe/helm-cache nil)
 (defvar-local pe/reverting nil)
 (defvar-local pe/get-directory-tree-async-timer nil)
+(defvar-local pe/origin-file-name nil)
 
 ;;; * Backends
 
@@ -901,8 +902,7 @@ With a prefix argument, unfold all children."
        (with-current-buffer (car bufs)
          (derived-mode-p 'project-explorer-mode))
        (with-current-buffer buf-name
-         (setq-local tab-width (with-current-buffer (car bufs)
-                                 tab-width)))))
+         (setq-local tab-width (buffer-local-value 'tab-width (car bufs))))))
 
 (defun pe/occur-mode-find-occurrence-hook ()
   (save-excursion
@@ -941,9 +941,7 @@ File name defaults to `buffer-file-name'"
         ( project-explorer-buffers (pe/get-project-explorer-buffers)))
     (cl-find project-root
              project-explorer-buffers
-             :key (lambda (project-explorer-buffer)
-                    (with-current-buffer project-explorer-buffer
-                      pe/project-root))
+             :key (apply-partially 'buffer-local-value 'pe/project-root)
              :test 'string-equal)))
 
 (defun pe/show-buffer-in-side-window (buffer)
@@ -1016,14 +1014,13 @@ Redraws the tree based on DATA, and tries to restore open folds."
                                  default-directory)))
                         (pe/get-filename)))))
 
-          (cl-assert pe/project-root
-                     nil "Current buffer: %s\nbuffer: %s"
-                     (current-buffer) buffer)
+          (cl-assert pe/project-root)
 
           (setq pe/data data)
 
           (when pe/cache-enabled
             (pe/cache-save))
+
           (let ((inhibit-read-only t))
             (erase-buffer)
             (delete-all-overlays)
@@ -1034,31 +1031,33 @@ Redraws the tree based on DATA, and tries to restore open folds."
             (font-lock-fontify-buffer)
             (goto-char (point-min)))
 
-          (when (eq type 'refresh)
-            (pe/folds-restore)
-            (when (get-buffer-window buffer)
-              (set-window-start nil window-start))
-            (and starting-name
-                 (pe/goto-file starting-name nil t)
-                 (move-to-column starting-column)))
-
-          (when (eq type 'directory-change)
-            (when (get-buffer-window buffer)
-              (set-window-start nil (point-min)))
-            (when pe/goto-current-file-on-open
-              (let ((file-name
-                     (with-current-buffer user-buffer
-                       (if (derived-mode-p 'dired-mode)
-                           (expand-file-name
-                            (dired-current-directory))
-                         (when (buffer-file-name)
-                           (expand-file-name
-                            (buffer-file-name)))))))
-                (when file-name
-                  (pe/show-file-prog file-name))
-                )))
+          (cl-case type
+            ( refresh
+              (pe/folds-restore)
+              (when (get-buffer-window buffer)
+                (set-window-start nil window-start))
+              (and starting-name
+                   (pe/goto-file starting-name nil t)
+                   (move-to-column starting-column)))
+            ( directory-change
+              (when (get-buffer-window buffer)
+                (set-window-start nil (point-min)))
+              (when pe/goto-current-file-on-open
+                (let (( file-name
+                        (or (with-current-buffer user-buffer
+                              (if (derived-mode-p 'dired-mode)
+                                  (expand-file-name
+                                   (dired-current-directory))
+                                (when (buffer-file-name)
+                                  (expand-file-name
+                                   (buffer-file-name)))))
+                            pe/origin-file-name)))
+                  (when file-name
+                    (pe/show-file-prog file-name))
+                  ))))
 
           (setq pe/previous-directory default-directory
+                pe/origin-file-name nil
                 pe/helm-cache nil
                 pe/reverting nil)
 
@@ -1180,31 +1179,22 @@ outside of the project's root."
                (expand-file-name
                 (buffer-file-name)))))
          ( project-root (funcall pe/project-root-function))
-         ( project-explorer-buffers (pe/get-project-explorer-buffers))
-         ( project-project-explorer-existing-buffer
-           (cl-find project-root
-                    project-explorer-buffers
-                    :key (lambda (project-explorer-buffer)
-                           (with-current-buffer
-                               project-explorer-buffer
-                             pe/project-root))
-                    :test 'string-equal))
          ( project-explorer-buffer
-           (or project-project-explorer-existing-buffer
+           (or (pe/get-current-project-explorer-buffer)
                (with-current-buffer
                    (generate-new-buffer " *project-explorer*")
                  (project-explorer-mode)
                  (setq default-directory
                        (setq pe/project-root
                              project-root))
+                 (setq pe/origin-file-name origin-file-name)
                  (pe/change-directory default-directory)
                  (current-buffer)
                  ))))
     (pe/show-buffer-in-side-window project-explorer-buffer)
     (when (and origin-file-name
                pe/goto-current-file-on-open
-               (with-current-buffer project-explorer-buffer
-                 pe/data))
+               (buffer-local-value 'pe/data project-explorer-buffer))
       (with-current-buffer project-explorer-buffer
         (pe/show-file-prog origin-file-name)))
     project-explorer-buffer))
