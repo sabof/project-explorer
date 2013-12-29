@@ -9,6 +9,8 @@ A tree project explorer.
     * I-search support
     * Occur support
     * Single key navigation keybindings
+    * Caching
+    * Multiple indexing methods, some asynchronous
 
 ##Main commands:
 
@@ -35,6 +37,30 @@ A tree project explorer.
 
 ##Main customizable variables:
 
-    pe/side        Set to 'left or 'right, depending on which side you want the sidebar to appear
-    pe/width       The width of the sidebar when it first appears
-    pe/omit-regex  Files and directories matching this regex won't be traversed
+* pe/directory-files-function
+
+   Indexing backend. One of `pe/get-directory-tree-async` (native, asynchronous,
+   slow), `pe/get-directory-tree-simple`(native, synchronous) or
+   `pe/get-directory-tree-find` (extrnal, asynchronus, best, but requires "find"
+   with GNU extensions)
+
+* pe/side
+
+   Set to 'left or 'right, depending on which side you want the sidebar to appear
+
+* pe/width
+
+   The width of the sidebar when it first appears
+
+* pe/omit-regex
+
+   Files and directories matching this regex won't be traversed
+
+* pe/cache-enabled
+
+   Whether to use caching
+
+* pe/project-root-function
+
+   Function that will locate the project root from the current
+   `default-directory`
