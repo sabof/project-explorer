@@ -13,9 +13,6 @@
 ;; The project is hosted at https://github.com/sabof/project-explorer
 ;; The latest version, and all the relevant information can be found there.
 
-;;; Todo:
-;; * Add status bar
-
 ;;; License:
 
 ;; This file is NOT part of GNU Emacs.
@@ -108,6 +105,23 @@ When set to t, folders containing only one folder will be displayed as one
 entry."
   :group 'project-explorer
   :type 'boolean)
+
+
+(defcustom pe/mode-line-format
+  `(:eval (concat (propertize
+                   (concat "  PE: "
+                           (file-name-nondirectory
+                            (directory-file-name
+                             default-directory)))
+                   'face 'font-lock-function-name-face)
+
+                  (when pe/reverting
+                    " -- Indexing")
+                  ))
+  "What to display in the mode-line.
+Use the default when nil."
+  :group 'project-explorer
+  :type 'sexp)
 
 (defcustom pe/goto-current-file-on-open t
   "When true, focus on the current file each time project explorer is revealed."
@@ -1091,6 +1105,10 @@ Redraws the tree based on DATA, and tries to restore open folds."
   (face-remap-add-relative 'default 'pe/file-face)
   (font-lock-add-keywords
    'project-explorer-mode '(("^.+/$" (0 'pe/directory-face append))))
+
+  (when pe/mode-line-format
+    (setq-local mode-line-format
+                pe/mode-line-format))
 
   (es-define-keys project-explorer-mode-map
     (kbd "u") 'pe/up-element
