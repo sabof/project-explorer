@@ -328,8 +328,8 @@ Directories first, then alphabetically."
                  nil)))
     (setq root-level (or root-level level))
     (setcdr level
-            (cl-loop for i = 1 then (1+ i)
-                     for file in files
+            (cl-loop for file in files
+                     for i from 1
                      collecting
                      (if (file-directory-p (concat dir file))
                          (let ((dir (concat dir file "/"))
@@ -529,7 +529,7 @@ Directories first, then alphabetically."
     (save-match-data
       (cl-loop with limit
                for segment in segments
-               for indent = 0 then (1+ indent)
+               for indent from 0
                do
                (when next-round-start
                  (goto-char next-round-start))
