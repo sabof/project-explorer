@@ -217,41 +217,44 @@ Directories first, then alphabetically."
       (not (string-match-p pe/omit-regex name))
     t))
 
-(defun pe/path-to-list (path)
-  (let* (( normalized-path
-           (replace-regexp-in-string "\\\\" "/" path t t))
-         ( split-path (split-string normalized-path "/" t))
-         ( dir-path-p
-           (string-match-p "/$" normalized-path)))
-    (cons (if dir-path-p 'directory 'file)
-          split-path)))
-
 (defun pe/paths-to-tree (paths)
-  (let* (( paths (mapcar 'pe/path-to-list paths))
+  "Takes a list of paths as input, and convertes it to a tree."
+
+  ;; FIXME: I'm making the assumption that the paths will be beginning with "./".
+
+  (let* (( path-to-list
+           (lambda (path)
+             (let* (( normalized-path
+                      (replace-regexp-in-string "\\\\" "/" path t t))
+                    ( split-path (split-string normalized-path "/" t))
+                    ( dir-path-p
+                      (string-match-p "/$" normalized-path)))
+               (cons (if dir-path-p 'directory 'file)
+                     split-path))))
          ( add-member (lambda (what where)
                         (setcdr where (cons what (cdr where)))
                         what))
          ( root (list nil))
          head)
     (cl-loop for path-raw in paths
+             for (type . path) = (funcall path-to-list path-raw)
              do
-             (cl-destructuring-bind (type &rest path) path-raw
-               (setq head root)
-               (cl-loop for segment in path
-                        for i = 0 then (1+ i)
-                        for is-last = (= (length path) (1+ i))
-                        do (setq head
-                                 (or (cl-find segment
-                                              (rest head)
-                                              :test 'equal
-                                              :key 'car-safe)
-                                     (funcall add-member
-                                              (if (or (not is-last)
-                                                      (eq type 'directory))
-                                                  (list segment)
-                                                segment)
-                                              head)
-                                     )))))
+             (setq head root)
+             (cl-loop for segment in path
+                      for i = 0 then (1+ i)
+                      for is-last = (= (length path) (1+ i))
+                      do (setq head
+                               (or (cl-find segment
+                                            (rest head)
+                                            :test 'equal
+                                            :key 'car-safe)
+                                   (funcall add-member
+                                            (if (or (not is-last)
+                                                    (eq type 'directory))
+                                                (list segment)
+                                              segment)
+                                            head)
+                                   ))))
     (cadr root)
     ))
 
