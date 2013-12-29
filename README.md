@@ -4,13 +4,13 @@ A tree project explorer.
 
 ##Features:
 
-    * Folding
-    * Grouping of folders containing a single folder
-    * I-search support
-    * Occur support
-    * Single key navigation keybindings
-    * Caching
-    * Multiple indexing methods, some asynchronous
+* Folding
+* Grouping of folders containing a single folder
+* I-search support
+* Occur support
+* Single key navigation keybindings
+* Caching
+* Multiple indexing methods, some asynchronous
 
 ##Main commands:
 
@@ -33,9 +33,14 @@ A tree project explorer.
     "C-U TAB"  unfold descendants
     "RET"      toggle folding of visit file
     "f"        visit file or directory
-    "w"        copy to clipboard and show the path of file at point
+    "w"        show the path of file at point, and copy it to clipboard
 
 ##Main customizable variables:
+
+* pe/project-root-function
+
+   Function that will locate the project root from the current
+   `default-directory`
 
 * pe/directory-files-function
 
@@ -44,6 +49,14 @@ A tree project explorer.
    `pe/get-directory-tree-find` (extrnal, asynchronus, best, but requires "find"
    with GNU extensions)
 
+* pe/cache-enabled
+
+   Whether to use caching
+
+* pe/omit-regex
+
+   Files and directories matching this regex won't be traversed
+
 * pe/side
 
    Set to 'left or 'right, depending on which side you want the sidebar to appear
@@ -51,16 +64,3 @@ A tree project explorer.
 * pe/width
 
    The width of the sidebar when it first appears
-
-* pe/omit-regex
-
-   Files and directories matching this regex won't be traversed
-
-* pe/cache-enabled
-
-   Whether to use caching
-
-* pe/project-root-function
-
-   Function that will locate the project root from the current
-   `default-directory`

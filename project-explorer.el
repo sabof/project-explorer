@@ -169,7 +169,7 @@ Set once, when the buffer is first created.")
 (defvar-local pe/get-directory-tree-async-timer nil)
 (defvar-local pe/origin-file-name nil)
 
-;;; * Backends
+;;; * Backend
 
 (defun pe/project-root-function-default ()
   (expand-file-name
