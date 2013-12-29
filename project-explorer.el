@@ -116,7 +116,7 @@ entry."
                    'face 'font-lock-function-name-face)
 
                   (when pe/reverting
-                    " -- Indexing")
+                    " (Indexing)")
                   ))
   "What to display in the mode-line.
 Use the default when nil."
@@ -1074,9 +1074,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
                 pe/origin-file-name nil
                 pe/helm-cache nil
                 pe/reverting nil)
-
-          (when (eq type 'refresh)
-            (message "Refresh complete")))))))
+          )))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
   (when pe/reverting
