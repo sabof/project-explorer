@@ -54,14 +54,6 @@
           (const :tag "Internal (sync)" pe/get-directory-tree-simple)
           (const :tag "Internal (async)" pe/get-directory-tree-async)))
 
-(defcustom pe/get-directory-tree-async-interval 0.5
-  "Interval between invocations of `pe/get-directory-tree-async'.
-A smaller number will make retrievals faster, but also more noticable.
-Only has effect when `pe/directory-files-function' is set to
-`pe/get-directory-tree-async'."
-  :group 'project-explorer
-  :type 'float)
-
 (defcustom pe/cache-enabled t
   "Whether to use cache."
   :group 'project-explorer
@@ -155,13 +147,16 @@ Called with no arguments, with the originating buffer as current."
 
 ;;; * Internal variables
 
+(defvar pe/get-directory-tree-async-delay 0.5
+  "Delay for the idle timer in `pe/get-directory-tree-async'.")
+
 (defvar pe/cache-alist nil)
 
 (defvar-local pe/project-root nil
   "The project a project-explorer buffer belongs to.
 Set once, when the buffer is first created.")
 (defvar-local pe/data nil)
-(defvar-local pe/queue nil)
+(defvar-local pe/get-directory-tree-async-queue nil)
 (defvar-local pe/folds-open nil)
 (defvar-local pe/previous-directory nil)
 (defvar-local pe/helm-cache nil)
@@ -335,19 +330,20 @@ Directories first, then alphabetically."
                          (let ((dir (concat dir file "/"))
                                (iter i))
                            (push (lambda ()
+                                   (message "hit %s" (random 345))
                                    (when (buffer-live-p buffer)
                                      (with-current-buffer buffer
                                        (setf (nth iter level)
                                              (pe/get-directory-tree-async
                                               dir done-func root-level)))))
-                                 pe/queue)
+                                 pe/get-directory-tree-async-queue)
                            iter)
                        file)))
     (setq pe/get-directory-tree-async-timer
-          (if pe/queue
-              (run-with-idle-timer pe/get-directory-tree-async-interval
-                                   nil (pop pe/queue))
-            (run-with-idle-timer pe/get-directory-tree-async-interval
+          (if pe/get-directory-tree-async-queue
+              (run-with-idle-timer pe/get-directory-tree-async-delay
+                                   nil (pop pe/get-directory-tree-async-queue))
+            (run-with-idle-timer pe/get-directory-tree-async-delay
                                  nil done-func root-level)))
     level))
 
@@ -356,7 +352,7 @@ Directories first, then alphabetically."
 (defun pe/get-directory-tree-async-cancel ()
   (when (timerp pe/get-directory-tree-async-timer)
     (cancel-timer pe/get-directory-tree-async-timer))
-  (setq pe/queue nil)
+  (setq pe/get-directory-tree-async-queue nil)
   (setq pe/reverting nil))
 
 (put 'pe/get-directory-tree-async

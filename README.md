@@ -3,14 +3,13 @@ A tree project explorer.
 ![screenshot](https://github.com/sabof/project-explorer/raw/master/screenshot.png)
 
 ## Features:
-
-    * Folding
-    * Grouping of folders containing a single folder
+    * Asynchronous indexing
+    * Caching
     * I-search support
     * Occur support
+    * Folding
+    * Grouping of folders containing a single folder
     * Single key navigation keybindings
-    * Caching
-    * Multiple indexing methods, some asynchronous
 
 ## Main commands:
 
