@@ -113,8 +113,8 @@ entry."
                            (file-name-nondirectory
                             (directory-file-name
                              default-directory)))
-                   'face 'font-lock-function-name-face)
-
+                   'face 'font-lock-function-name-face
+                   'help-echo default-directory)
                   (when pe/reverting
                     " (Indexing)")
                   ))
