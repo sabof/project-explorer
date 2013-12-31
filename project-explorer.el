@@ -567,7 +567,7 @@ Makes adjustments for folding."
 
 (defun pe/show-file-prog (&optional file-name)
   (when file-name
-    (pe/goto-file file-name))
+    (pe/goto-file file-name nil t))
   (save-excursion
     (when (pe/up-element-prog)
       (pe/unfold-prog))))
