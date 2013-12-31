@@ -1055,6 +1055,7 @@ Redraws the tree based on DATA, and tries to restore open folds."
             ( directory-change
               (when (get-buffer-window buffer)
                 (set-window-start nil (point-min)))
+              (setq pe/folds-open nil)
               (when pe/goto-current-file-on-open
                 (let (( file-name
                         (or (with-current-buffer user-buffer
