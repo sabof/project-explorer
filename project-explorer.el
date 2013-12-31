@@ -330,7 +330,6 @@ Directories first, then alphabetically."
                          (let ((dir (concat dir file "/"))
                                (iter i))
                            (push (lambda ()
-                                   (message "hit %s" (random 345))
                                    (when (buffer-live-p buffer)
                                      (with-current-buffer buffer
                                        (setf (nth iter level)
