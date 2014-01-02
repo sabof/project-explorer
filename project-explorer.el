@@ -3,7 +3,7 @@
 ;; Hi-lock: (("^;;; \\*.+" (0 '(:inherit (bold org-level-1)) t)))
 ;; Hi-lock: end
 
-;;; Version: 0.10.1
+j;;; Version: 0.10.1
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3"))
@@ -45,7 +45,7 @@
   "A project explorer sidebar."
   :group 'convenience)
 
-(defcustom pe/directory-files-function
+(defcustom pe/directory-tree-function
   'pe/get-directory-tree-async
   "Backend used for tree retrieval"
   :group 'project-explorer
@@ -260,7 +260,7 @@ Directories first, then alphabetically."
                         (lambda (file)
                           (or (member file '("." ".."))
                               (not (pe/file-interesting-p file))))
-                        (directory-files dir))))
+                        (directory-files dir nil nil t))))
            (cons (file-name-nondirectory (directory-file-name dir))
                  (mapcar (lambda (file)
                            (if (file-directory-p (concat dir file))
@@ -317,7 +317,7 @@ Directories first, then alphabetically."
                   (lambda (file)
                     (or (member file '("." ".."))
                         (not (pe/file-interesting-p file))))
-                  (directory-files dir)))
+                  (directory-files dir nil nil t)))
          ( level
            (cons (file-name-nondirectory (directory-file-name dir))
                  nil)))
@@ -367,7 +367,7 @@ Directories first, then alphabetically."
   (let ((default-directory pe/cache-directory))
     (mapc 'delete-file
           (cl-remove-if (lambda (it) (member it '("." "..")))
-                        (directory-files pe/cache-directory)))))
+                        (directory-files pe/cache-directory nil nil t)))))
 
 (defun pe/cache-make-filename (filename)
   (concat
@@ -1077,13 +1077,13 @@ Redraws the tree based on DATA, and tries to restore open folds."
 
 (cl-defun pe/revert-buffer (&rest ignore)
   (when pe/reverting
-    (if (get pe/directory-files-function 'pe/cancel)
+    (if (get pe/directory-tree-function 'pe/cancel)
         (if (y-or-n-p "A refresh is already in progress. Cancel it?")
-            (funcall (get pe/directory-files-function 'pe/cancel))
+            (funcall (get pe/directory-tree-function 'pe/cancel))
           (cl-return-from pe/revert-buffer))
       (user-error "Revert already in progress")))
   (setq pe/reverting t)
-  (funcall pe/directory-files-function
+  (funcall pe/directory-tree-function
            default-directory
            (apply-partially 'pe/set-tree (current-buffer) 'refresh)))
 
@@ -1151,9 +1151,9 @@ outside of the project's root."
              "\"%s\" is not a directory" dir))
 
   (and pe/reverting
-       (get pe/directory-files-function
+       (get pe/directory-tree-function
             'pe/cancel)
-       (funcall (get pe/directory-files-function
+       (funcall (get pe/directory-tree-function
                      'pe/cancel)))
 
   (setq dir (file-name-as-directory dir)
@@ -1172,11 +1172,11 @@ outside of the project's root."
       (insert "Searching for files..."))
 
     (when (or (not cache)
-              (and (get pe/directory-files-function
+              (and (get pe/directory-tree-function
                         'pe/async)
                    pe/auto-refresh-cache))
       (setq pe/reverting t)
-      (funcall pe/directory-files-function
+      (funcall pe/directory-tree-function
                default-directory
                (apply-partially 'pe/set-tree (current-buffer)
                                 (if cache
