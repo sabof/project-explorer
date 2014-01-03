@@ -568,7 +568,9 @@ Makes adjustments for folding."
   (and file-name
        (pe/goto-file file-name nil t)
        (deactivate-mark))
-  (pe/unfold-prog))
+  (save-excursion
+    (when (pe/up-element-prog)
+      (pe/unfold-prog))))
 
 ;;; ** Folding
 
