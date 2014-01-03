@@ -564,9 +564,10 @@ Makes adjustments for folding."
     (goto-char (es-total-line-beginning))
     (pe/get-filename)))
 
-(defun pe/show-file-prog (&optional file-name)
+(cl-defun pe/show-file-prog (&optional file-name)
   (and file-name
-       (pe/goto-file file-name nil t)
+       (or (pe/goto-file file-name nil t)
+           (cl-return-from pe/show-file-prog))
        (deactivate-mark))
   (save-excursion
     (when (pe/up-element-prog)
