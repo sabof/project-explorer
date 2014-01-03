@@ -564,14 +564,11 @@ Makes adjustments for folding."
     (goto-char (es-total-line-beginning))
     (pe/get-filename)))
 
-(defun pe/show-file-prog (file-name)
+(defun pe/show-file-prog (&optional file-name)
   (and file-name
        (pe/goto-file file-name nil t)
-       (progn
-         (deactivate-mark)
-         (save-excursion
-           (when (pe/up-element-prog)
-             (pe/unfold-prog))))))
+       (deactivate-mark))
+  (pe/unfold-prog))
 
 ;;; ** Folding
 
@@ -603,8 +600,9 @@ Does nothing on an open line."
   (unless (pe/folded-p)
     (cl-return-from pe/unfold-prog))
   (save-excursion
-    (unless (pe/at-directory-p)
-      (pe/up-element-prog))
+    (or (pe/at-directory-p)
+        (pe/up-element-prog)
+        (cl-return-from pe/unfold-prog))
     (pe/folds-add (pe/get-filename))
     (mapc 'delete-overlay
           (cl-remove-if-not
@@ -713,6 +711,8 @@ Does nothing on an open line."
   (pe/forward-element (- arg)))
 
 (defun pe/up-element-prog ()
+  "Go to the parent element, if there is such.
+Returns the value of point if there has been movement. nil otherwise."
   (let (( indentation
           (es-current-character-indentation)))
     (and (cl-plusp indentation)
