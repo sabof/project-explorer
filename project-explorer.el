@@ -564,7 +564,7 @@ Makes adjustments for folding."
     (goto-char (es-total-line-beginning))
     (pe/get-filename)))
 
-(defun pe/show-file-prog (&optional file-name)
+(defun pe/show-file-prog (file-name)
   (and file-name
        (pe/goto-file file-name nil t)
        (progn
