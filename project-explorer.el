@@ -37,7 +37,9 @@
 (require 'cl-lib)
 (require 'es-lib)
 (require 'dired)
-(require 'helm-utils)
+(require 'helm-utils nil t)
+(require 'helm-locate nil t)
+(require 'helm-files nil t)
 
 ;;; * User variables
 
@@ -787,22 +789,17 @@ Returns the value of point if there has been movement. nil otherwise."
                                  file-name-nondirectory))
                              (propertize file-name
                                          'face 'font-lock-keyword-face))
-                     file-name))))
+                     (expand-file-name file-name)))))
       (nconc (mapcar (apply-partially to-cons t)
                      visited-files)
              (mapcar (apply-partially to-cons nil)
                      flattened-file-list))
       )))
 
-(defun pe/helm-find-file (file)
-  (with-current-buffer
-      (pe/get-current-project-explorer-buffer)
-    (find-file (expand-file-name file))))
-
 (defvar pe/helm-source
-  '(( name . "Project explorer")
+  `(( name . "Project explorer")
     ( candidates . pe/helm-candidates)
-    ( action . (("Find file" . pe/helm-find-file)))
+    ( action . ,(cdr (helm-get-actions-from-type helm-source-locate)))
     ( no-delay-on-input)
     ))
 
