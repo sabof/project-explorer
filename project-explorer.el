@@ -766,6 +766,10 @@ Returns the value of point if there has been movement. nil otherwise."
               (lambda (file-name)
                 (or (string-match-p "/$" file-name)
                     (member file-name visited-files)))
+
+              ;; FIXME: Would be more efficient if cache contained full paths.
+              ;; No need to expand them, just concatenate.
+
               (or pe/helm-cache
                   (setq pe/helm-cache
                         (cl-mapcan (lambda (it)
