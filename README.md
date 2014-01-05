@@ -41,7 +41,7 @@ A tree project explorer.
     Function that will locate the project root from the current
     `default-directory`
 
-##### pe/directory-files-function
+##### pe/directory-tree-function
 
     Indexing backend. One of `pe/get-directory-tree-async' (native,
     asynchronous), `pe/get-directory-tree-simple'(native, synchronous) or
