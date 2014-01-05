@@ -37,7 +37,9 @@
 (require 'cl-lib)
 (require 'es-lib)
 (require 'dired)
+
 (require 'helm-utils nil t)
+(require 'helm-mode nil t)
 (require 'helm-locate nil t)
 (require 'helm-files nil t)
 (require 'projectile nil t)
