@@ -40,6 +40,7 @@
 (require 'helm-utils nil t)
 (require 'helm-locate nil t)
 (require 'helm-files nil t)
+(require 'projectile nil t)
 
 ;;; * User variables
 
