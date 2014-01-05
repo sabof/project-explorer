@@ -219,9 +219,6 @@ Directories first, then alphabetically."
 
 (defun pe/paths-to-tree (paths)
   "Takes a list of paths as input, and convertes it to a tree."
-
-  ;; FIXME: I'm making the assumption that the paths will be beginning with "./".
-
   (let* (( path-to-list
            (lambda (path)
              (let* (( normalized-path
@@ -229,6 +226,8 @@ Directories first, then alphabetically."
                     ( split-path (split-string normalized-path "/" t))
                     ( dir-path-p
                       (string-match-p "/$" normalized-path)))
+               (unless (string-equal "." (car split-path))
+                 (push "." split-path))
                (cons (if dir-path-p 'directory 'file)
                      split-path))))
          ( add-member (lambda (what where)
@@ -369,10 +368,10 @@ Directories first, then alphabetically."
   "Clear local cache, and delete cache files for all directories."
   (interactive)
   (setq pe/cache-alist nil)
-  (let ((default-directory pe/cache-directory))
-    (mapc 'delete-file
-          (cl-remove-if (lambda (it) (member it '("." "..")))
-                        (directory-files pe/cache-directory nil nil t)))))
+  (mapc (lambda (file-name)
+          (unless (member file-name '("." ".."))
+            (delete-file (concat pe/cache-directory file-name))))
+        (directory-files pe/cache-directory nil nil t)))
 
 (defun pe/cache-make-filename (filename)
   (concat
@@ -753,50 +752,45 @@ Returns the value of point if there has been movement. nil otherwise."
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
     (let* (( visited-files
-             ;; Contains paths of open buffers relative to default-directory
-             (let (( buffer-list (remove helm-current-buffer (buffer-list)))
-                   ( \default-directory-length
-                     (length default-directory)))
-               (mapcar (lambda (long-name)
-                         (substring long-name default-directory-length))
-                       (cl-remove-if (lambda (name)
-                                       (or (null name)
-                                           (not (string-prefix-p default-directory
-                                                                 name))))
-                                     (mapcar 'buffer-file-name buffer-list)))))
+             (let (( buffer-list (remove helm-current-buffer (buffer-list))))
+               (cl-remove-if (lambda (name)
+                               (or (null name)
+                                   (not (string-prefix-p default-directory
+                                                         name))))
+                             (mapcar 'buffer-file-name buffer-list))))
            ( flattened-file-list
-             (cl-remove-if
-              (lambda (file-name)
-                (or (string-match-p "/$" file-name)
-                    (member file-name visited-files)))
-
-              ;; FIXME: Would be more efficient if cache contained full paths.
-              ;; No need to expand them, just concatenate.
-
-              (or pe/helm-cache
-                  (setq pe/helm-cache
-                        (cl-mapcan (lambda (it)
-                                     (if (consp it)
-                                         (pe/flatten-tree it)
-                                       (list it)))
-                                   (cdr pe/data))))))
+             (cl-remove-if (lambda (file-name)
+                             (or (string-match-p "/$" file-name)
+                                 (member file-name visited-files)))
+                           (or pe/helm-cache
+                               (setq pe/helm-cache
+                                     (cl-mapcan (lambda (it)
+                                                  (if (consp it)
+                                                      (cl-dolist (it2 (pe/flatten-tree it))
+                                                        (concat default-directory it2))
+                                                    (list (concat default-directory it))))
+                                                (cdr pe/data))))))
+           ( \default-directory-length
+             (length default-directory))
            ( to-cons
              (lambda (highlight file-name)
                (cons (format "%s\t%s"
-                             (let (( file-name-nondirectory
-                                     (truncate-string-to-width
-                                      (file-name-nondirectory
-                                       file-name)
-                                      pe/helm-buffer-max-length
-                                      nil ?  t)))
-                               (if highlight
-                                   (propertize file-name-nondirectory
-                                               'face
-                                               'font-lock-function-name-face)
-                                 file-name-nondirectory))
-                             (propertize file-name
-                                         'face 'font-lock-keyword-face))
-                     (expand-file-name file-name)))))
+                             (progn
+                               (let (( file-name-nondirectory
+                                       (truncate-string-to-width
+                                        (file-name-nondirectory
+                                         file-name)
+                                        pe/helm-buffer-max-length
+                                        nil ?  t)))
+                                 (if highlight
+                                     (propertize file-name-nondirectory
+                                                 'face
+                                                 'font-lock-function-name-face)
+                                   file-name-nondirectory)))
+                             (progn
+                               (propertize (substring file-name default-directory-length)
+                                           'face 'font-lock-keyword-face)))
+                     file-name))))
       (nconc (mapcar (apply-partially to-cons t)
                      visited-files)
              (mapcar (apply-partially to-cons nil)
@@ -810,13 +804,17 @@ Returns the value of point if there has been movement. nil otherwise."
     ( no-delay-on-input)
     ))
 
-(defun project-explorer-helm ()
+(cl-defun project-explorer-helm ()
   "Browse the project using helm."
   (interactive)
   (require 'helm)
   (unless (pe/get-current-project-explorer-buffer)
-    (save-window-excursion
-      (project-explorer-open)))
+    (let ((win-config (current-window-configuration)))
+      (project-explorer-open)
+      (unless (buffer-local-value 'pe/data (pe/get-current-project-explorer-buffer))
+        (message "Helm will be available, once indexing is complete.")
+        (cl-return-from project-explorer-helm))
+      (set-window-configuration win-config)))
   (helm :sources '(pe/helm-source)))
 
 ;;; * User functions
