@@ -3,7 +3,7 @@
 ;; Hi-lock: (("^;;; \\*.+" (0 '(:inherit (bold org-level-1)) t)))
 ;; Hi-lock: end
 
-;;; Version: 0.11.1
+;;; Version: 0.11.2
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3"))
@@ -797,12 +797,13 @@ Returns the value of point if there has been movement. nil otherwise."
                      flattened-file-list))
       )))
 
-(defvar pe/helm-source
-  `(( name . "Project explorer")
-    ( candidates . pe/helm-candidates)
-    ( action . ,(cdr (helm-get-actions-from-type helm-source-locate)))
-    ( no-delay-on-input)
-    ))
+(eval-after-load 'helm-locate
+  '(defvar pe/helm-source
+    `(( name . "Project explorer")
+      ( candidates . pe/helm-candidates)
+      ( action . ,(cdr (helm-get-actions-from-type helm-source-locate)))
+      ( no-delay-on-input)
+      )))
 
 (cl-defun project-explorer-helm ()
   "Browse the project using helm."
