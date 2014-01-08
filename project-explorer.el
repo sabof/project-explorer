@@ -803,12 +803,13 @@ Returns the value of point if there has been movement. nil otherwise."
                      flattened-file-list))
       )))
 
-(defvar pe/helm-source
-  `(( name . "Project explorer")
-    ( candidates . pe/helm-candidates)
-    ( action . ,(cdr (helm-get-actions-from-type helm-source-locate)))
-    ( no-delay-on-input)
-    ))
+(eval-after-load 'helm-locate
+  '(defvar pe/helm-source
+    `(( name . "Project explorer")
+      ( candidates . pe/helm-candidates)
+      ( action . ,(cdr (helm-get-actions-from-type helm-source-locate)))
+      ( no-delay-on-input)
+      )))
 
 (defun project-explorer-helm ()
   "Browse the project using helm."
