@@ -63,3 +63,21 @@ A tree project explorer.
 ##### pe/width
 
     The width of the sidebar when it first appears
+
+## Tailor fitting pe/project-root-function for your project type
+
+The default `pe/project-root-function` assumes that the project root will be the closest directory containing `.git`, or the current directory. If you have `projectile` installed, it will simply use `projectile-project-root` instead. Should you need something more specific, it's not hard to make your own project-finding function.
+
+```emacs-list
+(defun pe/project-root-function-sample ()
+  (expand-file-name
+   (or
+    ;; A specific directory
+    (when (string-prefix-p "/path/to/my/project/" default-directory)
+      "/path/to/my/project/")
+    ;; A directory containg a file
+    (locate-dominating-file default-directory "Web.config")
+    default-directory)))
+
+(setq pe/project-root-function 'pe/project-root-function-sample)
+```
