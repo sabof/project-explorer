@@ -766,8 +766,9 @@ Returns the value of point if there has been movement. nil otherwise."
                                (setq pe/helm-cache
                                      (cl-mapcan (lambda (it)
                                                   (if (consp it)
-                                                      (cl-dolist (it2 (pe/flatten-tree it))
-                                                        (concat default-directory it2))
+                                                      (mapcar (lambda (it2)
+                                                                (concat default-directory it2))
+                                                              (pe/flatten-tree it))
                                                     (list (concat default-directory it))))
                                                 (cdr pe/data))))))
            ( \default-directory-length
