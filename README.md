@@ -64,11 +64,11 @@ A tree project explorer.
 
     The width of the sidebar when it first appears
 
-## Tailor fitting pe/project-root-function for your project type
+## Tailor-fitting pe/project-root-function
 
 The default `pe/project-root-function` assumes that the project root will be the closest directory containing `.git`, or the current directory. If you have `projectile` installed, it will simply use `projectile-project-root` instead. Should you need something more specific, it's not hard to make your own project-finding function.
 
-```emacs-list
+```emacs-lisp
 (defun pe/project-root-function-sample ()
   (expand-file-name
    (or
