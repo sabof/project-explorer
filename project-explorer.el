@@ -176,6 +176,9 @@ Set once, when the buffer is first created.")
    (or (and (fboundp 'projectile-project-root)
             (projectile-project-root))
        (locate-dominating-file default-directory ".git")
+       (cl-find-if (lambda (a-root) (string-prefix-p a-root default-directory))
+                   (mapcar (apply-partially 'buffer-local-value 'pe/project-root)
+                           (pe/get-project-explorer-buffers)))
        default-directory)))
 
 (cl-defun pe/compress-tree (branch)
@@ -758,19 +761,22 @@ Returns the value of point if there has been movement. nil otherwise."
                                    (not (string-prefix-p default-directory
                                                          name))))
                              (mapcar 'buffer-file-name buffer-list))))
+           ( get-fresh-data
+             (lambda ()
+               (cl-mapcan (lambda (it)
+                            (if (consp it)
+                                (mapcar (lambda (it2)
+                                          (concat default-directory it2))
+                                        (pe/flatten-tree it))
+                              (list (concat default-directory it))))
+                          (cdr pe/data))))
            ( flattened-file-list
              (cl-remove-if (lambda (file-name)
                              (or (string-match-p "/$" file-name)
                                  (member file-name visited-files)))
                            (or pe/helm-cache
                                (setq pe/helm-cache
-                                     (cl-mapcan (lambda (it)
-                                                  (if (consp it)
-                                                      (mapcar (lambda (it2)
-                                                                (concat default-directory it2))
-                                                              (pe/flatten-tree it))
-                                                    (list (concat default-directory it))))
-                                                (cdr pe/data))))))
+                                     (funcall get-fresh-data)))))
            ( \default-directory-length
              (length default-directory))
            ( to-cons
