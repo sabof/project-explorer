@@ -823,6 +823,11 @@ Returns the value of point if there has been movement. nil otherwise."
         (message "Helm will be available, once indexing is complete.")
         (cl-return-from project-explorer-helm))
       (set-window-configuration win-config)))
+  (when (derived-mode-p 'project-explorer-mode)
+    (select-window (car (cl-remove-if
+                         (lambda (win)
+                           (window-parameter win 'window-side))
+                         (window-list)))))
   (helm :sources '(pe/helm-source)))
 
 ;;; * User functions
