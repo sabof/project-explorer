@@ -140,6 +140,11 @@ Called with no arguments, with the originating buffer as current."
   :group 'project-explorer
   :type 'symbol)
 
+(defcustom pe/confirm-delete t
+  "Whether to ask for confimration before deleting."
+  :group 'project-explorer
+  :type 'boolean)
+
 (defface pe/file-face
     '((t (:inherit default)))
   "Face used for regular files in project-explorer sidebar."
@@ -155,12 +160,15 @@ Called with no arguments, with the originating buffer as current."
 (defvar pe/get-directory-tree-async-delay 0.5
   "Delay for the idle timer in `pe/get-directory-tree-async'.")
 
-(defvar pe/cache-alist nil)
+(defvar pe/cache-alist nil
+  "In-memory cache of directory trees.")
 
 (defvar-local pe/project-root nil
   "The project a project-explorer buffer belongs to.
 Set once, when the buffer is first created.")
-(defvar-local pe/data nil)
+;; FIXME: sort pe/data before storing
+(defvar-local pe/data nil
+  "Raw data for the tree. Unsorted.")
 (defvar-local pe/get-directory-tree-async-queue nil)
 (defvar-local pe/folds-open nil)
 (defvar-local pe/previous-directory nil)
@@ -194,7 +202,7 @@ Set once, when the buffer is first created.")
         ( t (cons (car branch)
                   (mapcar 'pe/compress-tree (cdr branch))))))
 
-(cl-defun pe/sort (branch)
+(cl-defun pe/sort (branch &optional dont-recurse)
   "Recursively sort a tree.
 Directories first, then alphabetically."
   (when (stringp branch)
@@ -211,7 +219,9 @@ Directories first, then alphabetically."
                         ( (and (consp a) (consp b))
                           (string< (car a) (car b)))
                         ( t (string< a b)))))))
-    (setcdr branch (mapcar 'pe/sort new-rest))
+    (if dont-recurse
+        (setcdr branch new-rest)
+      (setcdr branch (mapcar 'pe/sort new-rest)))
     branch
     ))
 
@@ -572,13 +582,18 @@ Makes adjustments for folding."
     (pe/get-filename)))
 
 (cl-defun pe/show-file-prog (&optional file-name)
-  (and file-name
-       (or (pe/goto-file file-name nil t)
-           (cl-return-from pe/show-file-prog))
-       (deactivate-mark))
-  (save-excursion
-    (when (pe/up-element-prog)
-      (pe/unfold-prog))))
+  (let ((init-pos (point)))
+    (and file-name
+         (or (pe/goto-file file-name nil t)
+             (cl-return-from pe/show-file-prog))
+         (deactivate-mark))
+    (save-excursion
+      (when (pe/up-element-prog)
+        (pe/unfold-prog)))
+    ;; Probably an emacs bug
+    (unless (= init-pos (point))
+      (unless (posn-at-point)
+        (recenter)))))
 
 ;;; ** Folding
 
@@ -911,6 +926,106 @@ With a prefix argument, unfold all children."
             (point))
           )))
 
+;;; * File management
+
+(defun pe/create-file (file-name)
+  "If FILE-NAME ends with a /, create a directory.
+Otherwise an empty file."
+  (interactive
+   (let (( root (or (when (pe/at-directory-p)
+                      (pe/get-filename))
+                    (save-excursion
+                      (when (pe/up-element-prog)
+                        (pe/get-filename)))
+                    default-directory)))
+     (list (read-file-name "Create file: " root nil))))
+  (cl-assert pe/data)
+  (let* (( is-directory (string-match-p "/$" file-name))
+         ( relative-name
+           (directory-file-name
+            (substring file-name
+                       (length default-directory))))
+         ( segments
+           (split-string relative-name
+                         "/" t))
+         ( thing-to-add (if is-directory
+                            (last segments)
+                          (car (last segments))))
+         ( head pe/data)
+         ( was-reverting
+           (prog1 pe/reverting
+             (when pe/reverting
+               (funcall (get pe/directory-tree-function 'pe/cancel))
+               (setq pe/reverting nil)))))
+
+    (if is-directory
+        (make-directory (directory-file-name file-name))
+      (with-temp-buffer
+        (write-region nil nil file-name nil 'silent nil 'excl)))
+    (while segments
+      (if (not (cdr segments))
+          (setcdr head (cdr (pe/sort (nconc head (list thing-to-add)))))
+        (setq head (cl-find (car segments)
+                            (cdr head)
+                            :key 'car-safe
+                            :test 'equal)))
+      (pop segments))
+    (pe/set-tree nil 'refresh pe/data)
+
+    (pe/show-file-prog file-name)
+    (when was-reverting
+      (pe/revert-buffer))))
+
+(cl-defun pe/delete-file (file-name)
+  (interactive (list (pe/get-filename)))
+  (cl-assert pe/data)
+  (let* (( is-directory (string-match-p "/$" file-name))
+         ( relative-name
+           (directory-file-name
+            (substring file-name
+                       (length default-directory))))
+         ( segments
+           (split-string relative-name
+                         "/" t))
+         ( head pe/data)
+         ( point (point))
+         ( was-reverting
+           (prog1 pe/reverting
+             (when pe/reverting
+               (funcall (get pe/directory-tree-function 'pe/cancel))
+               (setq pe/reverting nil)))))
+
+    (unless (or (not pe/confirm-delete)
+                (y-or-n-p (format "Delete %s?"
+                                  (file-name-nondirectory
+                                   (directory-file-name file-name)))))
+      (cl-return-from pe/delete-file))
+
+    (if is-directory
+        (delete-directory file-name t t)
+      (delete-file file-name t))
+
+    (while segments
+      (if (not (cdr segments))
+          (setcdr head (cl-remove (car segments)
+                                  (cdr head)
+                                  :key (lambda (it)
+                                         (if (consp it)
+                                             (car it)
+                                           it))
+                                  :test 'equal))
+        (setq head (cl-find (car segments)
+                            (cdr head)
+                            :key 'car-safe
+                            :test 'equal)))
+      (pop segments))
+    (pe/set-tree nil 'refresh pe/data)
+    (goto-char (max (point-min) (min (point-max) point)))
+    (pe/goto-file (pe/get-filename))
+    (when was-reverting
+      (pe/revert-buffer))
+    ))
+
 ;;; ** Isearch
 
 (defun pe/isearch-show (ov)
@@ -1031,7 +1146,10 @@ File name defaults to `buffer-file-name'"
 
 (defun pe/set-tree (buffer type data)
   "Called after data retrieval is complete.
-Redraws the tree based on DATA, and tries to restore open folds."
+Redraws the tree based on DATA. Will try to restore folds, if TYPE is
+`refresh'. Saves data to cache, if caching is enabled."
+  (cl-assert (memq type '(refresh directory-change)))
+  (setq buffer (or buffer (current-buffer)))
   (let ((user-buffer (current-buffer)))
     (with-selected-window
         (or (get-buffer-window buffer)
@@ -1128,6 +1246,9 @@ Redraws the tree based on DATA, and tries to restore open folds."
                 pe/mode-line-format))
 
   (es-define-keys project-explorer-mode-map
+    (kbd "+") 'pe/create-file
+    (kbd "-") 'pe/delete-file
+    (kbd "D") 'pe/delete-file
     (kbd "u") 'pe/up-element
     (kbd "a") 'pe/goto-top
     (kbd "d") 'pe/change-directory
