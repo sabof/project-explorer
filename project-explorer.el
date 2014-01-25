@@ -166,7 +166,6 @@ Called with no arguments, with the originating buffer as current."
 (defvar-local pe/project-root nil
   "The project a project-explorer buffer belongs to.
 Set once, when the buffer is first created.")
-;; FIXME: sort pe/data before storing
 (defvar-local pe/data nil
   "Raw data for the tree. Unsorted.")
 (defvar-local pe/get-directory-tree-async-queue nil)
@@ -582,16 +581,17 @@ Makes adjustments for folding."
     (pe/get-filename)))
 
 (cl-defun pe/show-file-prog (&optional file-name)
-  (let ((init-pos (point)))
+  (let ((init-pos (point))
+        (found (not file-name)))
     (and file-name
-         (or (pe/goto-file file-name nil t)
+         (or (setq found (pe/goto-file file-name nil t))
              (cl-return-from pe/show-file-prog))
          (deactivate-mark))
     (save-excursion
       (when (pe/up-element-prog)
         (pe/unfold-prog)))
-    ;; Probably an emacs bug
-    (unless (= init-pos (point))
+    ;; Fix for what looks like an emacs bug
+    (when found
       (unless (posn-at-point)
         (recenter)))))
 
@@ -962,6 +962,7 @@ Otherwise an empty file."
         (make-directory (directory-file-name file-name))
       (with-temp-buffer
         (write-region nil nil file-name nil 'silent nil 'excl)))
+
     (while segments
       (if (not (cdr segments))
           (setcdr head (cdr (pe/sort (nconc head (list thing-to-add)))))
@@ -970,8 +971,8 @@ Otherwise an empty file."
                             :key 'car-safe
                             :test 'equal)))
       (pop segments))
-    (pe/set-tree nil 'refresh pe/data)
 
+    (pe/set-tree nil 'refresh pe/data)
     (pe/show-file-prog file-name)
     (when was-reverting
       (pe/revert-buffer))))
@@ -1308,7 +1309,7 @@ outside of the project's root."
     (if cache
         (progn
           (setq pe/data cache)
-          (pe/set-tree (current-buffer) 'directory-change pe/data))
+          (pe/set-tree nil 'directory-change pe/data))
       (setq pe/data nil)
       (insert "Searching for files..."))
 
