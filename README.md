@@ -22,6 +22,8 @@ A tree project explorer.
     "j"        Next line
     "k"        Previous line
     "g"        refresh
+    "+"        Create file or directory
+    "-"        Delete file or directory
     "q"        hide sidebar
     "u"        go to parent directory
     "["        previous sibling
