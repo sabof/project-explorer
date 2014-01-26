@@ -520,9 +520,11 @@ Directories first, then alphabetically."
 
 (defun pe/folds-remove (file-name)
   (let* (( parent
-           (file-name-directory
-            (directory-file-name
-             file-name)))
+           (save-excursion
+             (pe/goto-file file-name)
+             (if (pe/up-element-prog)
+                 (pe/get-filename)
+               default-directory)))
          ( new-folds
            (cl-remove-if
             (lambda (listed-file-name)
@@ -545,8 +547,9 @@ Directories first, then alphabetically."
   (let ((old-folds pe/folds-open))
     (setq pe/folds-open nil)
     (cl-dolist (fold old-folds)
-      (when (pe/goto-file fold nil t)
-        (pe/unfold-prog)))))
+      (and (pe/goto-file fold nil t)
+           (not (looking-at-p ".*/.*/"))
+           (pe/unfold-prog)))))
 
 ;;; * Text
 
