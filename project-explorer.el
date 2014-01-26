@@ -1039,6 +1039,7 @@ Otherwise an empty file."
   (interactive (list (pe/user-get-filename)))
   (cl-assert pe/data)
   (cl-assert (file-exists-p file-name))
+
   (let* (( is-directory (string-match-p "/$" file-name))
          ( point (point))
          ( was-reverting
@@ -1079,6 +1080,13 @@ Otherwise an empty file."
   (cl-assert (file-exists-p file-name))
 
   (setq file-name (directory-file-name file-name))
+
+  (when (file-directory-p new-file-name)
+    (setq new-file-name
+          (concat (file-name-as-directory new-file-name)
+                  (file-name-nondirectory
+                   (directory-file-name new-file-name)))))
+
   (let* (( is-directory (file-directory-p file-name))
          ( point (point))
          ( file-name-data (pe/data-get file-name))
@@ -1112,6 +1120,13 @@ Otherwise an empty file."
   (cl-assert (file-exists-p file-name))
 
   (setq file-name (directory-file-name file-name))
+
+  (when (file-directory-p new-file-name)
+    (setq new-file-name
+          (concat (file-name-as-directory new-file-name)
+                  (file-name-nondirectory
+                   (directory-file-name new-file-name)))))
+
   (let* (( is-directory (file-directory-p file-name))
          ( point (point))
          ( file-name-data (pe/data-get file-name))
