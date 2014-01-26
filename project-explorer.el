@@ -237,6 +237,8 @@ Directories first, then alphabetically."
     t))
 
 (cl-defun pe/data-get (file-name)
+  (unless (string-prefix-p default-directory file-name)
+    (cl-return-from pe/data-get))
   (let* (( relative-name
            (directory-file-name
             (substring file-name
@@ -288,7 +290,9 @@ Directories first, then alphabetically."
                                      :test 'equal))))
              segments)))
 
-(defun pe/data-delete (file-name)
+(cl-defun pe/data-delete (file-name)
+  (unless (string-prefix-p default-directory file-name)
+    (cl-return-from pe/data-delete))
   (let* (( relative-name
            (directory-file-name
             (substring file-name
