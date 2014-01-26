@@ -1009,10 +1009,10 @@ With a prefix argument, unfold all children."
 Otherwise an empty file."
   (interactive
    (let (( root (or (when (pe/at-directory-p)
-                      (pe/get-filename))
+                      (pe/user-get-filename))
                     (save-excursion
                       (when (pe/up-element-prog)
-                        (pe/get-filename)))
+                        (pe/user-get-filename)))
                     default-directory)))
      (list (read-file-name "Create file: " root nil))))
   (cl-assert pe/data)
@@ -1036,7 +1036,7 @@ Otherwise an empty file."
       (pe/revert-buffer))))
 
 (cl-defun pe/delete-file (file-name)
-  (interactive (list (pe/get-filename)))
+  (interactive (list (pe/user-get-filename)))
   (cl-assert pe/data)
   (cl-assert (file-exists-p file-name))
   (let* (( is-directory (string-match-p "/$" file-name))
@@ -1066,15 +1066,15 @@ Otherwise an empty file."
     ))
 
 (cl-defun pe/rename-file (file-name new-file-name)
-  (interactive (list (pe/get-filename)
+  (interactive (list (pe/user-get-filename)
                      (read-file-name "Rename to: "
                                      (file-name-directory
                                       (directory-file-name
-                                       (pe/get-filename)))
+                                       (pe/user-get-filename)))
                                      nil nil
                                      (file-name-nondirectory
                                       (directory-file-name
-                                       (pe/get-filename))))))
+                                       (pe/user-get-filename))))))
   (cl-assert pe/data)
   (cl-assert (file-exists-p file-name))
 
@@ -1099,15 +1099,15 @@ Otherwise an empty file."
     ))
 
 (cl-defun pe/copy-file (file-name new-file-name)
-  (interactive (list (pe/get-filename)
+  (interactive (list (pe/user-get-filename)
                      (read-file-name "Rename to: "
                                      (file-name-directory
                                       (directory-file-name
-                                       (pe/get-filename)))
+                                       (pe/user-get-filename)))
                                      nil nil
                                      (file-name-nondirectory
                                       (directory-file-name
-                                       (pe/get-filename))))))
+                                       (pe/user-get-filename))))))
   (cl-assert pe/data)
   (cl-assert (file-exists-p file-name))
 
