@@ -139,11 +139,6 @@ Called with no arguments, with the originating buffer as current."
   :group 'project-explorer
   :type 'symbol)
 
-(defcustom pe/confirm-delete t
-  "Whether to ask for confimration before deleting."
-  :group 'project-explorer
-  :type 'boolean)
-
 (defface pe/file-face
     '((t (:inherit default)))
   "Face used for regular files in project-explorer sidebar."
@@ -1047,10 +1042,9 @@ Otherwise an empty file."
   (pe/with-continued-revert
     (let* (( is-directory (string-match-p "/$" file-name))
            ( point (point)))
-      (unless (or (not pe/confirm-delete)
-                  (y-or-n-p (format "Delete %s?"
-                                    (file-name-nondirectory
-                                     (directory-file-name file-name)))))
+      (unless (y-or-n-p (format "Delete %s?"
+                                (file-name-nondirectory
+                                 (directory-file-name file-name))))
         (cl-return-from pe/delete-file))
 
       (if is-directory
