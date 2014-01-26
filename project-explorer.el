@@ -680,11 +680,7 @@ Makes adjustments for folding."
          (deactivate-mark))
     (save-excursion
       (when (pe/up-element-prog)
-        (pe/unfold-prog)))
-    ;; Fix for what looks like an emacs bug
-    (when found
-      (unless (posn-at-point)
-        (recenter)))))
+        (pe/unfold-prog)))))
 
 ;;; ** Folding
 
@@ -1288,13 +1284,13 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
             ( refresh
               (pe/folds-restore)
               (when (get-buffer-window buffer)
-                (set-window-start nil window-start))
+                (set-window-start nil window-start t))
               (and starting-name
                    (pe/goto-file starting-name nil t)
                    (move-to-column starting-column)))
             ( directory-change
               (when (get-buffer-window buffer)
-                (set-window-start nil (point-min)))
+                (set-window-start nil (point-min) t))
               (setq pe/folds-open nil)
               (when pe/goto-current-file-on-open
                 (let (( file-name
