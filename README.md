@@ -18,17 +18,18 @@ A tree project explorer.
 
 ## Main key-bindings:
 
-    "d"        Change directory
+    "s"        Change directory
     "j"        Next line
     "k"        Previous line
     "g"        refresh
     "+"        Create file or directory
-    "-"        Delete file or directory
+    "-" & "d   Delete file or directory
+    "c"        Copy file or directory
+    "r"        Rename file or directory
     "q"        hide sidebar
     "u"        go to parent directory
     "["        previous sibling
     "]"        next sibling
-    "s"        isearch-forward
     "r"        isearch-backward
     "TAB"      toggle-folding
     "C-U TAB"  unfold descendants

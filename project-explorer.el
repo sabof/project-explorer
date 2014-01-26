@@ -103,7 +103,6 @@ entry."
   :group 'project-explorer
   :type 'boolean)
 
-
 (defcustom pe/mode-line-format
   `(:eval (concat (propertize
                    (concat "  PE: "
@@ -228,6 +227,83 @@ Directories first, then alphabetically."
   (if pe/omit-regex
       (not (string-match-p pe/omit-regex name))
     t))
+
+(cl-defun pe/data-get (file-name)
+  (let* (( relative-name
+           (directory-file-name
+            (substring file-name
+                       (length default-directory))))
+         ( segments
+           (split-string relative-name "/" t))
+         ( head pe/data))
+    (while segments
+      (if (not (cdr segments))
+          (cl-return-from pe/data-get
+            (cl-find (car segments)
+                     (cdr head)
+                     :key (lambda (it)
+                            (if (consp it)
+                                (car it)
+                              it))
+                     :test 'equal))
+        (setq head (cl-find (car segments)
+                            (cdr head)
+                            :key 'car-safe
+                            :test 'equal)))
+      (pop segments))))
+
+(cl-defun pe/data-add (file-name &optional thing-to-add)
+  (unless (string-prefix-p default-directory file-name)
+    (cl-return-from pe/data-add))
+  (unless (consp thing-to-add)
+    (setq thing-to-add nil))
+  (let* (( is-directory (string-match-p "/$" file-name))
+         ( relative-name
+           (directory-file-name
+            (substring file-name
+                       (length default-directory))))
+         ( segments
+           (split-string relative-name "/" t))
+         ( ---
+           (when thing-to-add
+             (setcar thing-to-add
+                     (car (last segments)))))
+         ( thing-to-add (or thing-to-add
+                            (if is-directory
+                                (last segments)
+                              (car (last segments)))))
+         ( head pe/data))
+    (while segments
+      (if (not (cdr segments))
+          (setcdr head (cdr (pe/sort (nconc head (list thing-to-add)))))
+        (setq head (cl-find (car segments)
+                            (cdr head)
+                            :key 'car-safe
+                            :test 'equal)))
+      (pop segments))))
+
+(defun pe/data-delete (file-name)
+  (let* (( relative-name
+           (directory-file-name
+            (substring file-name
+                       (length default-directory))))
+         ( segments
+           (split-string relative-name "/" t))
+         ( head pe/data))
+    (while segments
+      (if (not (cdr segments))
+          (setcdr head (cl-remove (car segments)
+                                  (cdr head)
+                                  :key (lambda (it)
+                                         (if (consp it)
+                                             (car it)
+                                           it))
+                                  :test 'equal))
+        (setq head (cl-find (car segments)
+                            (cdr head)
+                            :key 'car-safe
+                            :test 'equal)))
+      (pop segments))))
 
 (defun pe/paths-to-tree (paths)
   "Takes a list of paths as input, and convertes it to a tree."
@@ -940,18 +1016,8 @@ Otherwise an empty file."
                     default-directory)))
      (list (read-file-name "Create file: " root nil))))
   (cl-assert pe/data)
+  (cl-assert (not (file-exists-p file-name)))
   (let* (( is-directory (string-match-p "/$" file-name))
-         ( relative-name
-           (directory-file-name
-            (substring file-name
-                       (length default-directory))))
-         ( segments
-           (split-string relative-name
-                         "/" t))
-         ( thing-to-add (if is-directory
-                            (last segments)
-                          (car (last segments))))
-         ( head pe/data)
          ( was-reverting
            (prog1 pe/reverting
              (when pe/reverting
@@ -963,15 +1029,7 @@ Otherwise an empty file."
       (with-temp-buffer
         (write-region nil nil file-name nil 'silent nil 'excl)))
 
-    (while segments
-      (if (not (cdr segments))
-          (setcdr head (cdr (pe/sort (nconc head (list thing-to-add)))))
-        (setq head (cl-find (car segments)
-                            (cdr head)
-                            :key 'car-safe
-                            :test 'equal)))
-      (pop segments))
-
+    (pe/data-add file-name)
     (pe/set-tree nil 'refresh pe/data)
     (pe/show-file-prog file-name)
     (when was-reverting
@@ -980,15 +1038,8 @@ Otherwise an empty file."
 (cl-defun pe/delete-file (file-name)
   (interactive (list (pe/get-filename)))
   (cl-assert pe/data)
+  (cl-assert (file-exists-p file-name))
   (let* (( is-directory (string-match-p "/$" file-name))
-         ( relative-name
-           (directory-file-name
-            (substring file-name
-                       (length default-directory))))
-         ( segments
-           (split-string relative-name
-                         "/" t))
-         ( head pe/data)
          ( point (point))
          ( was-reverting
            (prog1 pe/reverting
@@ -1006,23 +1057,75 @@ Otherwise an empty file."
         (delete-directory file-name t t)
       (delete-file file-name t))
 
-    (while segments
-      (if (not (cdr segments))
-          (setcdr head (cl-remove (car segments)
-                                  (cdr head)
-                                  :key (lambda (it)
-                                         (if (consp it)
-                                             (car it)
-                                           it))
-                                  :test 'equal))
-        (setq head (cl-find (car segments)
-                            (cdr head)
-                            :key 'car-safe
-                            :test 'equal)))
-      (pop segments))
+    (pe/data-delete file-name)
     (pe/set-tree nil 'refresh pe/data)
     (goto-char (max (point-min) (min (point-max) point)))
     (pe/goto-file (pe/get-filename))
+    (when was-reverting
+      (pe/revert-buffer))
+    ))
+
+(cl-defun pe/rename-file (file-name new-file-name)
+  (interactive (list (pe/get-filename)
+                     (read-file-name "Rename to: "
+                                     (file-name-directory
+                                      (directory-file-name
+                                       (pe/get-filename)))
+                                     nil nil
+                                     (file-name-nondirectory
+                                      (directory-file-name
+                                       (pe/get-filename))))))
+  (cl-assert pe/data)
+  (cl-assert (file-exists-p file-name))
+
+  (setq file-name (directory-file-name file-name))
+  (let* (( is-directory (file-directory-p file-name))
+         ( point (point))
+         ( file-name-data (pe/data-get file-name))
+         ( was-reverting
+           (prog1 pe/reverting
+             (when pe/reverting
+               (funcall (get pe/directory-tree-function 'pe/cancel))
+               (setq pe/reverting nil)))))
+
+    (rename-file file-name new-file-name 1)
+
+    (pe/data-delete file-name)
+    (pe/data-add new-file-name file-name-data)
+    (pe/set-tree nil 'refresh pe/data)
+    (pe/show-file-prog new-file-name)
+    (when was-reverting
+      (pe/revert-buffer))
+    ))
+
+(cl-defun pe/copy-file (file-name new-file-name)
+  (interactive (list (pe/get-filename)
+                     (read-file-name "Rename to: "
+                                     (file-name-directory
+                                      (directory-file-name
+                                       (pe/get-filename)))
+                                     nil nil
+                                     (file-name-nondirectory
+                                      (directory-file-name
+                                       (pe/get-filename))))))
+  (cl-assert pe/data)
+  (cl-assert (file-exists-p file-name))
+
+  (setq file-name (directory-file-name file-name))
+  (let* (( is-directory (file-directory-p file-name))
+         ( point (point))
+         ( file-name-data (pe/data-get file-name))
+         ( was-reverting
+           (prog1 pe/reverting
+             (when pe/reverting
+               (funcall (get pe/directory-tree-function 'pe/cancel))
+               (setq pe/reverting nil)))))
+
+    (copy-file file-name new-file-name 1)
+
+    (pe/data-add new-file-name file-name-data)
+    (pe/set-tree nil 'refresh pe/data)
+    (pe/show-file-prog new-file-name)
     (when was-reverting
       (pe/revert-buffer))
     ))
@@ -1249,10 +1352,9 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
   (es-define-keys project-explorer-mode-map
     (kbd "+") 'pe/create-file
     (kbd "-") 'pe/delete-file
-    (kbd "D") 'pe/delete-file
+    (kbd "d") 'pe/delete-file
     (kbd "u") 'pe/up-element
     (kbd "a") 'pe/goto-top
-    (kbd "d") 'pe/change-directory
     (kbd "TAB") 'pe/tab
     (kbd "M-}") 'pe/forward-element
     (kbd "M-{") 'pe/backward-element
@@ -1269,8 +1371,9 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (kbd "<mouse-2>") 'pe/middle-click
     (kbd "<mouse-1>") 'pe/left-click
     (kbd "q") 'pe/quit
-    (kbd "s") 'isearch-forward
-    (kbd "r") 'isearch-backward
+    (kbd "s") 'pe/change-directory
+    (kbd "r") 'pe/rename-file
+    (kbd "c") 'pe/copy-file
     (kbd "f") 'pe/find-file
     (kbd "w") 'pe/copy-file-name-as-kill))
 
