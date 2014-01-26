@@ -246,24 +246,22 @@ Directories first, then alphabetically."
            (directory-file-name
             (substring file-name
                        (length default-directory))))
-         ( segments
-           (split-string relative-name "/" t))
          ( head pe/data))
-    (while segments
-      (if (not (cdr segments))
-          (cl-return-from pe/data-get
-            (cl-find (car segments)
-                     (cdr head)
-                     :key (lambda (it)
-                            (if (consp it)
-                                (car it)
-                              it))
-                     :test 'equal))
-        (setq head (cl-find (car segments)
-                            (cdr head)
-                            :key 'car-safe
-                            :test 'equal)))
-      (pop segments))))
+    (cl-mapl (lambda (segments)
+               (if (not (cdr segments))
+                   (cl-return-from pe/data-get
+                     (cl-find (car segments)
+                              (cdr head)
+                              :key (lambda (it)
+                                     (if (consp it)
+                                         (car it)
+                                       it))
+                              :test 'equal))
+                 (setq head (cl-find (car segments)
+                                     (cdr head)
+                                     :key 'car-safe
+                                     :test 'equal))))
+             (split-string relative-name "/" t))))
 
 (cl-defun pe/data-add (file-name &optional thing-to-add)
   (unless (string-prefix-p default-directory file-name)
@@ -286,37 +284,35 @@ Directories first, then alphabetically."
                                 (last segments)
                               (car (last segments)))))
          ( head pe/data))
-    (while segments
-      (if (not (cdr segments))
-          (setcdr head (cdr (pe/sort (nconc head (list thing-to-add)))))
-        (setq head (cl-find (car segments)
-                            (cdr head)
-                            :key 'car-safe
-                            :test 'equal)))
-      (pop segments))))
+    (cl-mapl (lambda (segments)
+               (if (not (cdr segments))
+                   (setcdr head (cdr (pe/sort (nconc head (list thing-to-add)))))
+                 (setq head (cl-find (car segments)
+                                     (cdr head)
+                                     :key 'car-safe
+                                     :test 'equal))))
+             segments)))
 
 (defun pe/data-delete (file-name)
   (let* (( relative-name
            (directory-file-name
             (substring file-name
                        (length default-directory))))
-         ( segments
-           (split-string relative-name "/" t))
          ( head pe/data))
-    (while segments
-      (if (not (cdr segments))
-          (setcdr head (cl-remove (car segments)
-                                  (cdr head)
-                                  :key (lambda (it)
-                                         (if (consp it)
-                                             (car it)
-                                           it))
-                                  :test 'equal))
-        (setq head (cl-find (car segments)
-                            (cdr head)
-                            :key 'car-safe
-                            :test 'equal)))
-      (pop segments))))
+    (cl-mapl (lambda (segments)
+               (if (not (cdr segments))
+                   (setcdr head (cl-remove (car segments)
+                                           (cdr head)
+                                           :key (lambda (it)
+                                                  (if (consp it)
+                                                      (car it)
+                                                    it))
+                                           :test 'equal))
+                 (setq head (cl-find (car segments)
+                                     (cdr head)
+                                     :key 'car-safe
+                                     :test 'equal))))
+             (split-string relative-name "/" t))))
 
 (defun pe/paths-to-tree (paths)
   "Takes a list of paths as input, and convertes it to a tree."
