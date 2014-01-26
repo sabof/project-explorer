@@ -166,7 +166,7 @@ Called with no arguments, with the originating buffer as current."
   "The project a project-explorer buffer belongs to.
 Set once, when the buffer is first created.")
 (defvar-local pe/data nil
-  "Raw data for the tree. Unsorted.")
+  "Data for the directory tree.")
 (defvar-local pe/get-directory-tree-async-queue nil)
 (defvar-local pe/folds-open nil)
 (defvar-local pe/previous-directory nil)
@@ -359,7 +359,7 @@ Directories first, then alphabetically."
                                (walker (concat dir file "/"))
                              file))
                          files)))))
-    (funcall done-func (walker dir))))
+    (funcall done-func (pe/sort (walker dir)))))
 
 ;;; ** pe/get-directory-tree-external
 
@@ -384,6 +384,7 @@ Directories first, then alphabetically."
                                   (setcar result (file-name-nondirectory
                                                   (directory-file-name
                                                    dir)))
+                                  (cl-callf pe/sort result)
                                   (funcall done-func result))
                               (setq pe/reverting nil))))
     ))
@@ -435,7 +436,10 @@ Directories first, then alphabetically."
               (run-with-idle-timer pe/get-directory-tree-async-delay
                                    nil (pop pe/get-directory-tree-async-queue))
             (run-with-idle-timer pe/get-directory-tree-async-delay
-                                 nil done-func root-level)))
+                                 nil
+                                 (lambda (raw-data)
+                                   (funcall done-func (pe/sort raw-data)))
+                                 root-level)))
     level))
 
 (put 'pe/get-directory-tree-async 'pe/async t)
@@ -1299,7 +1303,7 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
             (pe/print-tree (funcall (if pe/inline-folders
                                         'pe/compress-tree
                                       'identity)
-                                    (pe/sort data)))
+                                    data))
             (font-lock-fontify-buffer)
             (goto-char (point-min)))
 
