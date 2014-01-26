@@ -498,8 +498,8 @@ Directories first, then alphabetically."
             (print-length nil))
         (print data (current-buffer)))
       (write-region nil nil cache-file-name nil 'silent))
-    (setq pe/cache-alist (acons default-directory data
-                                pe/cache-alist))))
+    (setq pe/cache-alist (cl-acons default-directory data
+                                   pe/cache-alist))))
 
 (cl-defun pe/cache-load ()
   (cl-assert pe/project-root)
@@ -515,8 +515,8 @@ Directories first, then alphabetically."
               (insert-file-contents cache-file-name)
               (goto-char (point-min))
               (read (current-buffer))))
-      (setq pe/cache-alist (acons default-directory cache-content
-                                  pe/cache-alist))
+      (setq pe/cache-alist (cl-acons default-directory cache-content
+                                     pe/cache-alist))
       cache-content))
   )
 
