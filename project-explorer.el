@@ -1092,7 +1092,7 @@ Otherwise an empty file."
     (setq new-file-name
           (concat (file-name-as-directory new-file-name)
                   (file-name-nondirectory
-                   (directory-file-name new-file-name)))))
+                   (directory-file-name file-name)))))
 
   (let* (( is-directory (file-directory-p file-name))
          ( point (point))
@@ -1103,11 +1103,8 @@ Otherwise an empty file."
                (funcall (get pe/directory-tree-function 'pe/cancel))
                (setq pe/reverting nil)))))
 
-    (rename-file file-name new-file-name 1)
-    (if (not is-directory)
-        (when (get-file-buffer file-name)
-          (with-current-buffer (get-file-buffer file-name)
-            (set-visited-file-name new-file-name nil t))))
+    (dired-rename-file file-name new-file-name nil)
+
     (pe/data-delete file-name)
     (pe/data-add new-file-name file-name-data)
     (pe/set-tree nil 'refresh pe/data)
@@ -1135,7 +1132,7 @@ Otherwise an empty file."
     (setq new-file-name
           (concat (file-name-as-directory new-file-name)
                   (file-name-nondirectory
-                   (directory-file-name new-file-name)))))
+                   (directory-file-name file-name)))))
 
   (let* (( is-directory (file-directory-p file-name))
          ( point (point))
