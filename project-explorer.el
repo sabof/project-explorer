@@ -673,8 +673,7 @@ Makes adjustments for folding."
     (pe/get-filename)))
 
 (cl-defun pe/show-file-prog (&optional file-name)
-  (let ((init-pos (point))
-        (found (not file-name)))
+  (let ((found (not file-name)))
     (and file-name
          (or (setq found (pe/goto-file file-name nil t))
              (cl-return-from pe/show-file-prog))
@@ -1085,16 +1084,14 @@ Otherwise an empty file."
   (setq file-name (directory-file-name file-name))
 
   (pe/with-continued-revert
-    (let* (( is-directory (file-directory-p file-name))
-           ( point (point))
-           ( file-name-data (pe/data-get file-name))
+    (let* (( file-name-data (pe/data-get file-name))
            ( new-file-name (if (not (file-directory-p new-file-name-arg))
                                new-file-name-arg
                              (concat (file-name-as-directory new-file-name-arg)
                                      (file-name-nondirectory
                                       (directory-file-name file-name))))))
 
-      (dired-rename-file file-name new-file-name-arg nil)
+      (dired-rename-file file-name new-file-name-arg 1)
 
       (pe/data-delete file-name)
       (pe/data-add new-file-name file-name-data)
@@ -1119,9 +1116,7 @@ Otherwise an empty file."
   (setq file-name (directory-file-name file-name))
 
   (pe/with-continued-revert
-    (let* (( is-directory (file-directory-p file-name))
-           ( point (point))
-           ( file-name-data (pe/data-get file-name))
+    (let* (( file-name-data (pe/data-get file-name))
            ( new-file-name (if (not (file-directory-p new-file-name-arg))
                                new-file-name-arg
                              (concat (file-name-as-directory new-file-name-arg)
