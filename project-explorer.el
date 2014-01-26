@@ -177,6 +177,19 @@ Set once, when the buffer is first created.")
 
 ;;; * Backend
 
+(defmacro pe/with-continued-revert (&rest body)
+  `(let (( was-reverting
+           (prog1 pe/reverting
+             (when pe/reverting
+               (funcall (get pe/directory-tree-function 'pe/cancel))
+               (setq pe/reverting nil))))
+         ( body-result (progn ,@body)))
+     (when was-reverting
+       (pe/revert-buffer))
+     body-result))
+(put 'pe/with-continued-revert 'common-lisp-indent-function
+     '(&body))
+
 (defun pe/project-root-function-default ()
   (expand-file-name
    (or (and (fboundp 'projectile-project-root)
@@ -1024,56 +1037,43 @@ Otherwise an empty file."
      (list (read-file-name "Create file: " root nil))))
   (cl-assert pe/data)
   (cl-assert (not (file-exists-p file-name)))
-  (let* (( is-directory (string-match-p "/$" file-name))
-         ( was-reverting
-           (prog1 pe/reverting
-             (when pe/reverting
-               (funcall (get pe/directory-tree-function 'pe/cancel))
-               (setq pe/reverting nil)))))
+  (pe/with-continued-revert
+    (let* (( is-directory (string-match-p "/$" file-name)))
+      (if is-directory
+          (make-directory (directory-file-name file-name))
+        (with-temp-buffer
+          (write-region nil nil file-name nil 'silent nil 'excl)))
 
-    (if is-directory
-        (make-directory (directory-file-name file-name))
-      (with-temp-buffer
-        (write-region nil nil file-name nil 'silent nil 'excl)))
-
-    (pe/data-add file-name)
-    (pe/set-tree nil 'refresh pe/data)
-    (pe/show-file-prog file-name)
-    (when was-reverting
-      (pe/revert-buffer))))
+      (pe/data-add file-name)
+      (pe/set-tree nil 'refresh pe/data)
+      (pe/show-file-prog file-name)
+      )))
 
 (cl-defun pe/delete-file (file-name)
   (interactive (list (pe/user-get-filename)))
   (cl-assert pe/data)
   (cl-assert (file-exists-p file-name))
 
-  (let* (( is-directory (string-match-p "/$" file-name))
-         ( point (point))
-         ( was-reverting
-           (prog1 pe/reverting
-             (when pe/reverting
-               (funcall (get pe/directory-tree-function 'pe/cancel))
-               (setq pe/reverting nil)))))
+  (pe/with-continued-revert
+    (let* (( is-directory (string-match-p "/$" file-name))
+           ( point (point)))
+      (unless (or (not pe/confirm-delete)
+                  (y-or-n-p (format "Delete %s?"
+                                    (file-name-nondirectory
+                                     (directory-file-name file-name)))))
+        (cl-return-from pe/delete-file))
 
-    (unless (or (not pe/confirm-delete)
-                (y-or-n-p (format "Delete %s?"
-                                  (file-name-nondirectory
-                                   (directory-file-name file-name)))))
-      (cl-return-from pe/delete-file))
+      (if is-directory
+          (delete-directory file-name t t)
+        (delete-file file-name t))
 
-    (if is-directory
-        (delete-directory file-name t t)
-      (delete-file file-name t))
+      (pe/data-delete file-name)
+      (pe/set-tree nil 'refresh pe/data)
+      (goto-char (max (point-min) (min (point-max) point)))
+      (pe/goto-file (pe/get-filename))
+      )))
 
-    (pe/data-delete file-name)
-    (pe/set-tree nil 'refresh pe/data)
-    (goto-char (max (point-min) (min (point-max) point)))
-    (pe/goto-file (pe/get-filename))
-    (when was-reverting
-      (pe/revert-buffer))
-    ))
-
-(cl-defun pe/rename-file (file-name new-file-name)
+(cl-defun pe/rename-file (file-name new-file-name-arg)
   (interactive (list (pe/user-get-filename)
                      (read-file-name "Rename to: "
                                      (file-name-directory
@@ -1088,32 +1088,26 @@ Otherwise an empty file."
 
   (setq file-name (directory-file-name file-name))
 
-  (when (file-directory-p new-file-name)
-    (setq new-file-name
-          (concat (file-name-as-directory new-file-name)
-                  (file-name-nondirectory
-                   (directory-file-name file-name)))))
+  (pe/with-continued-revert
+    (let* (( is-directory (file-directory-p file-name))
+           ( point (point))
+           ( file-name-data (pe/data-get file-name))
+           ( new-file-name (if (not (file-directory-p new-file-name-arg))
+                               new-file-name-arg
+                             (concat (file-name-as-directory new-file-name-arg)
+                                     (file-name-nondirectory
+                                      (directory-file-name file-name))))))
 
-  (let* (( is-directory (file-directory-p file-name))
-         ( point (point))
-         ( file-name-data (pe/data-get file-name))
-         ( was-reverting
-           (prog1 pe/reverting
-             (when pe/reverting
-               (funcall (get pe/directory-tree-function 'pe/cancel))
-               (setq pe/reverting nil)))))
+      (dired-rename-file file-name new-file-name-arg nil)
 
-    (dired-rename-file file-name new-file-name nil)
+      (pe/data-delete file-name)
+      (pe/data-add new-file-name file-name-data)
+      (pe/set-tree nil 'refresh pe/data)
+      (pe/show-file-prog new-file-name)
 
-    (pe/data-delete file-name)
-    (pe/data-add new-file-name file-name-data)
-    (pe/set-tree nil 'refresh pe/data)
-    (pe/show-file-prog new-file-name)
-    (when was-reverting
-      (pe/revert-buffer))
-    ))
+      )))
 
-(cl-defun pe/copy-file (file-name new-file-name)
+(cl-defun pe/copy-file (file-name new-file-name-arg)
   (interactive (list (pe/user-get-filename)
                      (read-file-name "Rename to: "
                                      (file-name-directory
@@ -1128,29 +1122,22 @@ Otherwise an empty file."
 
   (setq file-name (directory-file-name file-name))
 
-  (when (file-directory-p new-file-name)
-    (setq new-file-name
-          (concat (file-name-as-directory new-file-name)
-                  (file-name-nondirectory
-                   (directory-file-name file-name)))))
+  (pe/with-continued-revert
+    (let* (( is-directory (file-directory-p file-name))
+           ( point (point))
+           ( file-name-data (pe/data-get file-name))
+           ( new-file-name (if (not (file-directory-p new-file-name-arg))
+                               new-file-name-arg
+                             (concat (file-name-as-directory new-file-name-arg)
+                                     (file-name-nondirectory
+                                      (directory-file-name file-name))))))
 
-  (let* (( is-directory (file-directory-p file-name))
-         ( point (point))
-         ( file-name-data (pe/data-get file-name))
-         ( was-reverting
-           (prog1 pe/reverting
-             (when pe/reverting
-               (funcall (get pe/directory-tree-function 'pe/cancel))
-               (setq pe/reverting nil)))))
+      (copy-file file-name new-file-name-arg 1)
 
-    (copy-file file-name new-file-name 1)
-
-    (pe/data-add new-file-name file-name-data)
-    (pe/set-tree nil 'refresh pe/data)
-    (pe/show-file-prog new-file-name)
-    (when was-reverting
-      (pe/revert-buffer))
-    ))
+      (pe/data-add new-file-name file-name-data)
+      (pe/set-tree nil 'refresh pe/data)
+      (pe/show-file-prog new-file-name)
+      )))
 
 ;;; ** Isearch
 
