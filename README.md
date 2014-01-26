@@ -34,8 +34,8 @@ A tree project explorer.
     "r"        isearch-backward
     "TAB"      toggle-folding
     "C-U TAB"  unfold descendants
-    "RET"      toggle folding of visit file
-    "f"        visit file or directory
+    "RET"      toggle folding of visit file (Specify window with C-U)
+    "f"        visit file or directory (Specify window with C-U)
     "w"        show the path of file at point, and copy it to clipboard
 
 ## Main customizable variables:

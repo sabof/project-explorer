@@ -6,7 +6,7 @@
 ;;; Version: 0.12.1
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
-;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3"))
+;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3") (es-windows "0.1")
 
 ;;; Commentary:
 
@@ -36,6 +36,7 @@
 
 (require 'cl-lib)
 (require 'es-lib)
+(require 'es-windows)
 (require 'dired)
 
 (require 'helm-utils nil t)
@@ -956,14 +957,15 @@ Returns the value of point if there has been movement. nil otherwise."
   (interactive "P")
   (if (file-directory-p (pe/user-get-filename))
       (pe/tab arg)
-    (pe/find-file)))
+    (pe/find-file arg)))
 
-(defun pe/find-file ()
+(defun pe/find-file (&optional arg)
   "Open the file or directory at point."
-  (interactive)
+  (interactive "P")
   (let ((file-name (pe/user-get-filename)))
-    (pe/show-buffer
-     (find-file-noselect file-name))))
+    (if arg
+        (esw/show-buffer (find-file-noselect file-name))
+      (pe/show-buffer (find-file-noselect file-name)))))
 
 (defun pe/unfold (&optional expanded)
   "For interactive use only. Use `pe/unfold-prog' in code."
@@ -1357,7 +1359,6 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (kbd "k") 'previous-line
     (kbd "l") 'forward-char
     (kbd "h") 'backward-char
-    ;; (kbd "^") 'pe/up-directory
     (kbd "RET") 'pe/return
     (kbd "<mouse-2>") 'pe/middle-click
     (kbd "<mouse-1>") 'pe/left-click
