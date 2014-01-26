@@ -673,14 +673,13 @@ Makes adjustments for folding."
     (pe/get-filename)))
 
 (cl-defun pe/show-file-prog (&optional file-name)
-  (let ((found (not file-name)))
-    (and file-name
-         (or (setq found (pe/goto-file file-name nil t))
-             (cl-return-from pe/show-file-prog))
-         (deactivate-mark))
-    (save-excursion
-      (when (pe/up-element-prog)
-        (pe/unfold-prog)))))
+  (and file-name
+       (or (pe/goto-file file-name nil t)
+           (cl-return-from pe/show-file-prog))
+       (deactivate-mark))
+  (save-excursion
+    (when (pe/up-element-prog)
+      (pe/unfold-prog))))
 
 ;;; ** Folding
 
@@ -857,12 +856,12 @@ Returns the value of point if there has been movement. nil otherwise."
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
     (let* (( visited-files
-             (let (( buffer-list (remove helm-current-buffer (buffer-list))))
-               (cl-remove-if (lambda (name)
-                               (or (null name)
-                                   (not (string-prefix-p default-directory
-                                                         name))))
-                             (mapcar 'buffer-file-name buffer-list))))
+             (cl-remove-if (lambda (name)
+                             (or (null name)
+                                 (not (string-prefix-p default-directory
+                                                       name))))
+                           (mapcar 'buffer-file-name
+                                   (remove helm-current-buffer (buffer-list)))))
            ( get-fresh-data
              (lambda ()
                (cl-mapcan (lambda (it)
@@ -954,10 +953,10 @@ Returns the value of point if there has been movement. nil otherwise."
          (looking-at-p "[^ \t\n]"))
        (pe/middle-click event)))
 
-(defun pe/return ()
-  (interactive)
+(defun pe/return (&optional arg)
+  (interactive "P")
   (if (file-directory-p (pe/user-get-filename))
-      (pe/tab)
+      (pe/tab arg)
     (pe/find-file)))
 
 (defun pe/find-file ()
@@ -1137,7 +1136,6 @@ Otherwise an empty file."
 (defun pe/isearch-show-temporarily (ov do-hide)
   (overlay-put ov 'display (when do-hide "..."))
   (overlay-put ov 'invisible do-hide))
-
 
 ;;; ** Occur
 
