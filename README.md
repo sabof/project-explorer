@@ -23,7 +23,7 @@ A tree project explorer.
     "j"        Next line
     "k"        Previous line
     "g"        refresh
-    "+"        Create file or directory
+    "+"        Create file or directory (if the name ends with a slash)
     "-" & "d   Delete file or directory
     "c"        Copy file or directory
     "r"        Rename file or directory

@@ -1199,12 +1199,11 @@ File name defaults to `buffer-file-name'"
   (let* (( project-explorer-buffers
            (pe/get-project-explorer-buffers))
          ( --clean-up--
-           (mapc (lambda (win)
-                   (and (memq (window-buffer win) project-explorer-buffers)
-                        (not (window-parameter win 'window-side))
-                        (eq t (window-deletable-p win))
-                        (delete-window win)))
-                 (window-list)))
+           (cl-dolist (win (window-list))
+             (and (memq (window-buffer win) project-explorer-buffers)
+                  (not (window-parameter win 'window-side))
+                  (eq t (window-deletable-p win))
+                  (delete-window win))))
          ( existing-window
            (cl-find-if
             (lambda (window)
