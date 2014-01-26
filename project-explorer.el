@@ -1104,7 +1104,10 @@ Otherwise an empty file."
                (setq pe/reverting nil)))))
 
     (rename-file file-name new-file-name 1)
-
+    (if (not is-directory)
+        (when (get-file-buffer file-name)
+          (with-current-buffer (get-file-buffer file-name)
+            (set-visited-file-name new-file-name nil t))))
     (pe/data-delete file-name)
     (pe/data-add new-file-name file-name-data)
     (pe/set-tree nil 'refresh pe/data)

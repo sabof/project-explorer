@@ -5,6 +5,7 @@ A tree project explorer.
 ## Features:
     * Asynchronous indexing
     * Caching
+    * Basic file-management
     * I-search support
     * Occur support
     * Folding
