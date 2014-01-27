@@ -954,13 +954,15 @@ Returns the value of point if there has been movement. nil otherwise."
        (pe/middle-click event)))
 
 (defun pe/return (&optional arg)
+  "Use `pe/find-file' when on a file, and `pe/tab' on a diriectory."
   (interactive "P")
   (if (file-directory-p (pe/user-get-filename))
       (pe/tab arg)
     (pe/find-file arg)))
 
 (defun pe/find-file (&optional arg)
-  "Open the file or directory at point."
+  "Open the file or directory at point.
+With a prefix argument, specify in which window to show it."
   (interactive "P")
   (let ((file-name (pe/user-get-filename)))
     (if arg
