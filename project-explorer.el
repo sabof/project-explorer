@@ -3,10 +3,10 @@
 ;; Hi-lock: (("^;;; \\*.+" (0 '(:inherit (bold org-level-1)) t)))
 ;; Hi-lock: end
 
-;;; Version: 0.12.1
+;;; Version: 0.12.2
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
-;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3") (es-windows "0.1") (emacs "24")
+;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3") (es-windows "0.1") (emacs "24"))
 
 ;;; Commentary:
 
