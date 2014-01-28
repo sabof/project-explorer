@@ -1099,7 +1099,7 @@ Otherwise an empty file."
 
 (cl-defun pe/copy-file (file-name new-file-name-arg)
   (interactive (list (pe/user-get-filename)
-                     (read-file-name "Rename to: "
+                     (read-file-name "Copy to: "
                                      (file-name-directory
                                       (directory-file-name
                                        (pe/user-get-filename)))
