@@ -1456,7 +1456,6 @@ outside of the project's root."
 (provide 'project-explorer)
 
 ;; Local Variables:
-;; eval: (orgstruct-mode)
 ;; eval: (hi-lock-mode)
 ;; orgstruct-heading-prefix-regexp: "^;;; \\*"
 ;; End:
