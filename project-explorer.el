@@ -989,7 +989,7 @@ With a prefix argument, specify in which window to show it."
 
 (defun pe/up-element ()
   "Goto the parent element of the file at point.
-Joined directories will be traversed as one. In programs use
+Joined directories will be traversed as one.  In programs use
  `pe/up-element-prog' instead."
   (interactive)
   (goto-char (es-total-line-beginning-position))
@@ -1166,7 +1166,7 @@ Otherwise an empty file."
       (delete-window))))
 
 (defun pe/show-file (&optional file-name)
-  "Show `file-name', in the associated project-explorer buffer.
+  "Show FILE-NAME, in the associated project-explorer buffer.
 File name defaults to `buffer-file-name'"
   (interactive)
   (let* (( error-message
