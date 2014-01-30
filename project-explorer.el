@@ -155,6 +155,7 @@ Called with no arguments, with the originating buffer as current."
   "Face used for directories in project-explorer sidebar."
   :group 'project-explorer)
 
+;; FIXME: Rename to before-something?
 (defcustom pe/directory-change-hook nil
   "A hook run when the directory is changed,
 or a project-explorer buffer is first created.
@@ -665,6 +666,15 @@ Has no effect if an external `pe/directory-tree-function' is used."
     (goto-char (line-beginning-position))
     (looking-at-p ".*/$")))
 
+(defun pe/get-directory ()
+  "Return the directory closest to point."
+  (or (when (pe/at-directory-p)
+        (pe/user-get-filename))
+      (save-excursion
+        (when (pe/up-element-prog)
+          (pe/user-get-filename)))
+      default-directory))
+
 (cl-defun pe/print-tree
     (branch &optional (depth -1))
   (let (start)
@@ -859,8 +869,7 @@ Does nothing on an open line."
                    (if (or (<= (point) root-point)
                            (memq (point) locations-to-fold))
                        (cl-return)
-                     (cl-pushnew (point) locations-to-fold)))
-          )
+                     (cl-pushnew (point) locations-to-fold))))
         (cl-dolist (location locations-to-fold)
           (goto-char location)
           (fold-this-line))
@@ -1109,6 +1118,16 @@ With ARG, reset it to the default value."
   (setq-local pe/cache-enabled nil)
   (revert-buffer))
 
+(defun pe/ack-and-a-half ()
+  (interactive)
+  (require 'ack-and-a-half)
+  (let* (( ack-and-a-half-prompt-for-directory nil)
+         ( dir (pe/get-directory))
+         ( default-directory dir)
+         ( ack-and-a-half-root-directory-functions
+           (list (lambda () dir))))
+    (call-interactively 'ack-and-a-half)))
+
 ;;; * Minor mode integration
 
 (defun pe/hl-line-range ()
@@ -1127,12 +1146,7 @@ With ARG, reset it to the default value."
   "If FILE-NAME ends with a /, create a directory.
 Otherwise an empty file."
   (interactive
-   (let (( root (or (when (pe/at-directory-p)
-                      (pe/user-get-filename))
-                    (save-excursion
-                      (when (pe/up-element-prog)
-                        (pe/user-get-filename)))
-                    default-directory)))
+   (let (( root (pe/get-directory)))
      (list (read-file-name "Create file: " root nil))))
   (cl-assert pe/data)
   (cl-assert (not (file-exists-p file-name)))
