@@ -174,6 +174,7 @@ Set once, when the buffer is first created.")
 ;;; * Backend
 
 (defmacro pe/with-continued-revert (&rest body)
+  (declare (indent 0))
   `(let (( was-reverting
            (prog1 pe/reverting
              (when pe/reverting
@@ -232,10 +233,16 @@ Directories first, then alphabetically."
     branch
     ))
 
-(defun pe/file-interesting-p (name)
-  (if pe/omit-regex
-      (not (string-match-p pe/omit-regex name))
-    t))
+(defun pe/file-interesting-p (path)
+  "Determines whether to display the file with PATH.
+If PATH ends with a /, it will be considered a directory."
+  ;; FIXME: Add pe/filter-regex
+  (let (( is-directory (string-match-p "/$" path))
+        ( file (file-name-nondirectory
+                (directory-file-name path))))
+    (if pe/omit-regex
+        (not (string-match-p pe/omit-regex file))
+      t)))
 
 (cl-defun pe/data-get (file-name)
   (unless (string-prefix-p default-directory file-name)
@@ -357,17 +364,25 @@ Directories first, then alphabetically."
 (defun pe/get-directory-tree-simple (dir done-func)
   (cl-labels
       ((walker (dir)
-         (let (( files (cl-remove-if
-                        (lambda (file)
-                          (or (member file '("." ".."))
-                              (not (pe/file-interesting-p file))))
-                        (directory-files dir nil nil t))))
+         (let (( file-specs
+                 (cl-remove-if
+                  (lambda (file-spec)
+                    (or (member (nth 0 file-spec) '("." ".."))
+                        (not (pe/file-interesting-p
+                              (nth 1 file-spec)))))
+                  (mapcar (lambda (file)
+                            (let* (( full-path (concat dir file))
+                                   ( is-directory (file-directory-p full-path)))
+                              (when is-directory
+                                (cl-callf concat full-path "/"))
+                              (list file full-path is-directory)))
+                          (directory-files dir nil nil t)))))
            (cons (file-name-nondirectory (directory-file-name dir))
-                 (mapcar (lambda (file)
-                           (if (file-directory-p (concat dir file))
-                               (walker (concat dir file "/"))
-                             file))
-                         files)))))
+                 (mapcar (lambda (file-spec)
+                           (if (nth 2 file-spec)
+                               (walker (nth 1 file-spec))
+                             (nth 0 file-spec)))
+                         file-specs)))))
     (funcall done-func (pe/sort (walker dir)))))
 
 ;;; ** pe/get-directory-tree-external
@@ -415,28 +430,36 @@ Directories first, then alphabetically."
 (defun pe/get-directory-tree-async (dir done-func &optional root-level)
   (let* (( inhibit-quit t)
          ( buffer (current-buffer))
-         ( files (cl-remove-if
-                  (lambda (file)
-                    (or (member file '("." ".."))
-                        (not (pe/file-interesting-p file))))
-                  (directory-files dir nil nil t)))
+         ( file-specs
+           (cl-remove-if
+            (lambda (file-spec)
+              (or (member (nth 0 file-spec) '("." ".."))
+                  (not (pe/file-interesting-p
+                        (nth 1 file-spec)))))
+            (mapcar (lambda (file)
+                      (let* (( full-path (concat dir file))
+                             ( is-directory (file-directory-p full-path)))
+                        (when is-directory
+                          (cl-callf concat full-path "/"))
+                        (list file full-path is-directory)))
+                    (directory-files dir nil nil t))))
          ( level
            (cons (file-name-nondirectory (directory-file-name dir))
                  nil)))
     (setq root-level (or root-level level))
     (setcdr level
-            (cl-loop for file in files
+            (cl-loop for (file full-path is-directory) in file-specs
                      for i from 1
                      collecting
-                     (if (file-directory-p (concat dir file))
-                         (let ((dir (concat dir file "/"))
+                     (if is-directory
+                         (let ((full-path full-path)
                                (iter i))
                            (push (lambda ()
                                    (when (buffer-live-p buffer)
                                      (with-current-buffer buffer
                                        (setf (nth iter level)
                                              (pe/get-directory-tree-async
-                                              dir done-func root-level)))))
+                                              full-path done-func root-level)))))
                                  pe/get-directory-tree-async-queue)
                            iter)
                        file)))
@@ -1003,6 +1026,51 @@ With a prefix argument, unfold all children."
       (pe/unfold arg)
     (pe/fold)))
 
+;; May conflic with filtering. Not user-friendly.
+(defun pe/set-omit-regex (regex arg)
+  "Set the omit regex for the current buffer, and refresh.
+Given an empty string,
+With ARG, reset it to the default value."
+  (interactive (list (unless current-prefix-arg
+                       (read-string "Set regex to: "
+                                    pe/omit-regex
+                                    nil
+                                    '(nil)))
+                     current-prefix-arg))
+  (when pe/reverting
+    (funcall (get pe/directory-tree-function 'pe/cancel))
+    (setq pe/reverting nil))
+  (if arg
+      (progn
+        (kill-local-variable 'pe/omit-regex)
+        (kill-local-variable 'pe/cache-enabled))
+    (setq-local pe/omit-regex regex)
+    (setq-local pe/cache-enabled nil))
+  (revert-buffer))
+
+;; Can't have local pe/omit-regex
+(defun pe/toggle-omit (arg)
+  "Set the omit regex for the current buffer, and refresh.
+Given an empty string,
+With ARG, reset it to the default value."
+  ;; FIXME: arg as number
+  (interactive (list current-prefix-arg))
+  (unless (default-value 'pe/omit-regex)
+    (user-error "Can't proceed with `pe-omit-regex' set to nil"))
+  (when pe/reverting
+    (funcall (get pe/directory-tree-function 'pe/cancel))
+    (setq pe/reverting nil))
+  (if pe/omit-regex
+      (progn
+        (setq-local pe/omit-regex nil)
+        (setq-local pe/cache-enabled nil))
+    (kill-local-variable 'pe/omit-regex)
+    (kill-local-variable 'pe/cache-enabled))
+  (revert-buffer))
+
+;; FIXME: Make it a buffer-local variable
+;; Discourage pe/omit regex from being set to nil?
+
 ;;; * Minor mode integration
 
 (defun pe/hl-line-range ()
@@ -1361,6 +1429,7 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (kbd "k") 'previous-line
     (kbd "l") 'forward-char
     (kbd "h") 'backward-char
+    (kbd "o") 'pe/set-omit-regex
     (kbd "RET") 'pe/return
     (kbd "<mouse-2>") 'pe/middle-click
     (kbd "<mouse-1>") 'pe/left-click
@@ -1389,15 +1458,14 @@ outside of the project's root."
                  'user-error 'error)
              "\"%s\" is not a directory" dir))
 
+  ;; FIXME: Add pe/cancel-revert.
   (and pe/reverting
-       (get pe/directory-tree-function
-            'pe/cancel)
-       (funcall (get pe/directory-tree-function
-                     'pe/cancel)))
+       (get pe/directory-tree-function 'pe/cancel)
+       (funcall (get pe/directory-tree-function 'pe/cancel)))
 
   (setq dir (file-name-as-directory dir)
         default-directory (expand-file-name dir))
-
+  ;; FIXME: Run set-directory-hook
   (let (( inhibit-read-only t)
         ( cache (and pe/cache-enabled
                      (pe/cache-load))))
@@ -1411,8 +1479,7 @@ outside of the project's root."
       (insert "Searching for files..."))
 
     (when (or (not cache)
-              (and (get pe/directory-tree-function
-                        'pe/async)
+              (and (get pe/directory-tree-function 'pe/async)
                    pe/auto-refresh-cache))
       (setq pe/reverting t)
       (funcall pe/directory-tree-function
