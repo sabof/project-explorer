@@ -203,13 +203,6 @@ Set once, when the buffer is first created.")
 (put 'pe/with-continued-revert 'common-lisp-indent-function
      '(&body))
 
-(defmacro pe/with-current-directory (&rest body)
-  (declare (indent 0))
-  `(let ((default-directory (pe/current-directory)))
-     ,@body))
-(put 'pe/with-current-directory 'common-lisp-indent-function
-     '(&body))
-
 (defun pe/project-root-function-default ()
   (expand-file-name
    (or (and (fboundp 'projectile-project-root)
@@ -283,15 +276,12 @@ Directories first, then alphabetically."
       (pe/sort result-tree)
       )))
 
-;; FIXME: filter-set ?
-;; Also omit-toggle?
-;; + readmes
-
 (defun pe/set-filter-regex (filter)
-  ;; FIXME: Doc
+  "Only show files matching FILTER.
+Disable filtering with prefix arg."
   (interactive (list (if current-prefix-arg
                          nil
-                       (read-string "Set filter regex (leave empty to disable): "
+                       (read-string "Set filter regex: "
                                     pe/filter-regex
                                     nil
                                     '(nil)))))
@@ -392,9 +382,6 @@ Has no effect if an external `pe/directory-tree-function' is used."
          (funcall (get pe/directory-tree-function 'pe/cancel))
          (setq pe/reverting nil))
        ))
-
-;; FIXME: Implement/delete me
-;; (defun pe/revert-start ())
 
 (defun pe/paths-to-tree (paths)
   "Converts a list of paths into a tree."
@@ -1109,6 +1096,14 @@ With a prefix argument, unfold all children."
       (pe/unfold arg)
     (pe/fold)))
 
+(defun pe/backtab (&optional arg)
+  "Fold all directories.
+With ARG unfold instead."
+  (interactive "P")
+  (if arg
+      (pe/unfold-all)
+    (pe/fold-all)))
+
 (defun pe/toggle-omit (arg)
   "Set the omit regex for the current buffer, and refresh.
 Given an empty string,
@@ -1129,11 +1124,11 @@ With ARG, reset it to the default value."
 (defun pe/ack-and-a-half ()
   (interactive)
   (require 'ack-and-a-half)
-  (pe/with-current-directory
-    (let* (( ack-and-a-half-prompt-for-directory nil)
-           ( ack-and-a-half-root-directory-functions
-             (list (lambda () default-directory))))
-      (call-interactively 'ack-and-a-half))))
+  (let* (( default-directory (pe/current-directory))
+         ( ack-and-a-half-prompt-for-directory nil)
+         ( ack-and-a-half-root-directory-functions
+           (list (lambda () default-directory))))
+    (call-interactively 'ack-and-a-half)))
 
 ;;; * File management
 
@@ -1474,7 +1469,6 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (setq-local mode-line-format
                 pe/mode-line-format))
 
-  ;; FIXME: add show-all, omit, ack and filter bindings
   (es-define-keys project-explorer-mode-map
     (kbd "+") 'pe/create-file
     (kbd "-") 'pe/delete-file
@@ -1482,6 +1476,7 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (kbd "u") 'pe/up-element
     (kbd "a") 'pe/goto-top
     (kbd "TAB") 'pe/tab
+    (kbd "<backtab>") 'pe/backtab
     (kbd "M-}") 'pe/forward-element
     (kbd "M-{") 'pe/backward-element
     (kbd "]") 'pe/forward-element
@@ -1492,7 +1487,6 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (kbd "k") 'previous-line
     (kbd "l") 'forward-char
     (kbd "h") 'backward-char
-    (kbd "o") 'pe/set-omit-regex
     (kbd "RET") 'pe/return
     (kbd "<mouse-2>") 'pe/middle-click
     (kbd "<mouse-1>") 'pe/left-click
@@ -1501,7 +1495,11 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (kbd "r") 'pe/rename-file
     (kbd "c") 'pe/copy-file
     (kbd "f") 'pe/find-file
-    (kbd "w") 'pe/copy-file-name-as-kill))
+    (kbd "w") 'pe/copy-file-name-as-kill
+    (kbd "M-k") 'pe/ack-and-a-half
+    (kbd "M-l") 'pe/set-filter-regex
+    (kbd "M-o") 'pe/toggle-omit
+    ))
 
 (cl-defun pe/change-directory (dir)
   "Changes the root directory of the project explorer.
@@ -1526,11 +1524,11 @@ outside of the project's root."
   (setq dir (file-name-as-directory dir)
         default-directory (expand-file-name dir))
 
-  ;; I _think_ manual cleenup is needed
   (cl-dolist (pair file-local-variables-alist)
     (when (eq (symbol-value (car pair)) (cdr pair))
       (kill-local-variable (car pair))))
-
+  (setq file-local-variables-alist nil
+        dir-local-variables-alist nil)
   (hack-dir-local-variables-non-file-buffer)
 
   (run-hooks 'pe/directory-change-hook)
