@@ -133,6 +133,11 @@ Directories matching this regular expression won't be traversed."
           (const :tag "Show all files" nil)
           (string :tag "Files matching this regex won't be shown")))
 
+(defcustom pe/omit-enabled t
+  "Whether to use `pe/omit-regex'."
+  :group 'project-explorer
+  :type 'boolean)
+
 (defcustom pe/project-root-function
   'pe/project-root-function-default
   "A function that determines the project root.
@@ -150,6 +155,14 @@ Called with no arguments, with the originating buffer as current."
   "Face used for directories in project-explorer sidebar."
   :group 'project-explorer)
 
+(defcustom pe/directory-change-hook nil
+  "A hook run when the directory is changed,
+or a project-explorer buffer is first created.
+It is run after directory local variables have been processed,
+and before the directory tree is read."
+  :group 'project-explorer
+  :type 'hook)
+
 ;;; * Internal variables
 
 (defvar pe/get-directory-tree-async-delay 0.5
@@ -158,6 +171,9 @@ Called with no arguments, with the originating buffer as current."
 (defvar pe/cache-alist nil
   "In-memory cache of directory trees.")
 
+(defvar-local pe/filter-regex nil
+  "Only files matching this regex will be shown.
+When non-nil, only directories containing matching files will be visible.")
 (defvar-local pe/project-root nil
   "The project a project-explorer buffer belongs to.
 Set once, when the buffer is first created.")
@@ -177,9 +193,7 @@ Set once, when the buffer is first created.")
   (declare (indent 0))
   `(let (( was-reverting
            (prog1 pe/reverting
-             (when pe/reverting
-               (funcall (get pe/directory-tree-function 'pe/cancel))
-               (setq pe/reverting nil))))
+             (pe/revert-cancel)))
          ( body-result (progn ,@body)))
      (when was-reverting
        (pe/revert-buffer))
@@ -233,16 +247,55 @@ Directories first, then alphabetically."
     branch
     ))
 
+(defun pe/filter-tree (tree regex)
+  (let* (( result-tree (list (car tree))))
+    (cl-labels ((add-entry (entry)
+                  ;; ENTRY doesn't include the root node.
+                  ;; deepest -> shallowest
+                  (cl-loop with head = result-tree
+                           for r-iter = (1- (length entry)) then (1- r-iter)
+                           for is-last = (zerop r-iter)
+                           for segment in entry
+                           do (if is-last
+                                  (setcdr head (cons segment (cdr head)))
+                                (setq head (or (cl-find-if (lambda (it)
+                                                             (and (consp it)
+                                                                  (equal (car it) segment)))
+                                                           (cdr head))
+                                               (progn (setcdr head (cons (list segment) (cdr head)))
+                                                      (cadr head)))))))
+                (walker (branch &optional trail)
+                  (cl-dolist (it (cdr branch))
+                    (if (consp it)
+                        (walker it (append trail (list (car it))))
+                      (when (string-match-p regex it)
+                        (add-entry (append trail (list it))))))))
+      (walker tree)
+      (pe/sort result-tree)
+      )))
+
+;; FIXME: filter-set ?
+;; Also omit-toggle?
+(defun pe/set-filter-regex (filter)
+  ;; FIXME: Doc
+  (interactive (list (if current-prefix-arg
+                         nil
+                       (read-string "Set filter regex (leave empty to disable): "
+                                    pe/filter-regex
+                                    nil
+                                    '(nil)))))
+  (setq-local pe/filter-regex filter)
+  (pe/set-tree nil 'refresh pe/data))
+
 (defun pe/file-interesting-p (path)
   "Determines whether to display the file with PATH.
-If PATH ends with a /, it will be considered a directory."
-  ;; FIXME: Add pe/filter-regex
-  (let (( is-directory (string-match-p "/$" path))
-        ( file (file-name-nondirectory
+If PATH ends with a /, it will be considered a directory.
+Has no effect if an external `pe/directory-tree-function' is used."
+  (let (( file (file-name-nondirectory
                 (directory-file-name path))))
-    (if pe/omit-regex
-        (not (string-match-p pe/omit-regex file))
-      t)))
+    (and (or (not pe/omit-regex)
+             (not pe/omit-enabled)
+             (not (string-match-p pe/omit-regex file))))))
 
 (cl-defun pe/data-get (file-name)
   (unless (string-prefix-p default-directory file-name)
@@ -321,8 +374,19 @@ If PATH ends with a /, it will be considered a directory."
                                      :test 'equal))))
              (split-string relative-name "/" t))))
 
+(defun pe/revert-cancel ()
+  (and pe/reverting
+       (get pe/directory-tree-function 'pe/cancel)
+       (progn
+         (funcall (get pe/directory-tree-function 'pe/cancel))
+         (setq pe/reverting nil))
+       ))
+
+;; FIXME: Implement/delete me
+;; (defun pe/revert-start ())
+
 (defun pe/paths-to-tree (paths)
-  "Takes a list of paths as input, and convertes it to a tree."
+  "Converts a list of paths into a tree."
   (let* (( path-to-list
            (lambda (path)
              (let* (( normalized-path
@@ -1026,50 +1090,22 @@ With a prefix argument, unfold all children."
       (pe/unfold arg)
     (pe/fold)))
 
-;; May conflic with filtering. Not user-friendly.
-(defun pe/set-omit-regex (regex arg)
-  "Set the omit regex for the current buffer, and refresh.
-Given an empty string,
-With ARG, reset it to the default value."
-  (interactive (list (unless current-prefix-arg
-                       (read-string "Set regex to: "
-                                    pe/omit-regex
-                                    nil
-                                    '(nil)))
-                     current-prefix-arg))
-  (when pe/reverting
-    (funcall (get pe/directory-tree-function 'pe/cancel))
-    (setq pe/reverting nil))
-  (if arg
-      (progn
-        (kill-local-variable 'pe/omit-regex)
-        (kill-local-variable 'pe/cache-enabled))
-    (setq-local pe/omit-regex regex)
-    (setq-local pe/cache-enabled nil))
-  (revert-buffer))
-
-;; Can't have local pe/omit-regex
 (defun pe/toggle-omit (arg)
   "Set the omit regex for the current buffer, and refresh.
 Given an empty string,
 With ARG, reset it to the default value."
-  ;; FIXME: arg as number
   (interactive (list current-prefix-arg))
   (unless (default-value 'pe/omit-regex)
     (user-error "Can't proceed with `pe-omit-regex' set to nil"))
-  (when pe/reverting
-    (funcall (get pe/directory-tree-function 'pe/cancel))
-    (setq pe/reverting nil))
-  (if pe/omit-regex
-      (progn
-        (setq-local pe/omit-regex nil)
-        (setq-local pe/cache-enabled nil))
-    (kill-local-variable 'pe/omit-regex)
-    (kill-local-variable 'pe/cache-enabled))
+  (pe/revert-cancel)
+  (setq-local pe/omit-enabled
+              (if arg
+                  (cl-plusp
+                   (prefix-numeric-value
+                    arg))
+                (not pe/omit-enabled)))
+  (setq-local pe/cache-enabled nil)
   (revert-buffer))
-
-;; FIXME: Make it a buffer-local variable
-;; Discourage pe/omit regex from being set to nil?
 
 ;;; * Minor mode integration
 
@@ -1338,13 +1374,16 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
           (when pe/cache-enabled
             (pe/cache-save))
 
-          (let ((inhibit-read-only t))
+          (let (( inhibit-read-only t)
+                ( data-for-print pe/data))
+            (when pe/inline-folders
+              (cl-callf pe/compress-tree data-for-print))
+            (when pe/filter-regex
+              (cl-callf pe/filter-tree data-for-print pe/filter-regex))
+
             (erase-buffer)
             (delete-all-overlays)
-            (pe/print-tree (funcall (if pe/inline-folders
-                                        'pe/compress-tree
-                                      'identity)
-                                    data))
+            (pe/print-tree data-for-print)
             (font-lock-fontify-buffer)
             (goto-char (point-min)))
 
@@ -1384,7 +1423,7 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
   (when pe/reverting
     (if (get pe/directory-tree-function 'pe/cancel)
         (if (y-or-n-p "A refresh is already in progress. Cancel it?")
-            (funcall (get pe/directory-tree-function 'pe/cancel))
+            (pe/revert-cancel)
           (cl-return-from pe/revert-buffer))
       (user-error "Revert already in progress")))
   (setq pe/reverting t)
@@ -1458,14 +1497,20 @@ outside of the project's root."
                  'user-error 'error)
              "\"%s\" is not a directory" dir))
 
-  ;; FIXME: Add pe/cancel-revert.
-  (and pe/reverting
-       (get pe/directory-tree-function 'pe/cancel)
-       (funcall (get pe/directory-tree-function 'pe/cancel)))
+  (pe/revert-cancel)
 
   (setq dir (file-name-as-directory dir)
         default-directory (expand-file-name dir))
-  ;; FIXME: Run set-directory-hook
+
+  ;; I _think_ manual cleenup is needed
+  (cl-dolist (pair file-local-variables-alist)
+    (when (eq (symbol-value (car pair)) (cdr pair))
+      (kill-local-variable (car pair))))
+
+  (hack-dir-local-variables-non-file-buffer)
+
+  (run-hooks 'pe/directory-change-hook)
+
   (let (( inhibit-read-only t)
         ( cache (and pe/cache-enabled
                      (pe/cache-load))))

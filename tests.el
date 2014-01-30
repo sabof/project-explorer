@@ -276,6 +276,22 @@ node7/
     (should-not (pe/goto-file "node7/node6"))
     ))
 
+(ert-deftest pe/filter-tree ()
+  (let ((source '("dir" "file1" "file2")))
+    (should (equal source (pe/filter-tree source "."))))
+  (let ((source '("dir1" ("dir2" "file3" "file4") "file1" "file2")))
+    (should (equal source (pe/filter-tree source "."))))
+  (let ((source '("dir1" ("dir2" "file3" "file4") ("dir3") "file1" "file2")))
+    (should (equal '("dir1" ("dir2" "file3" "file4") "file1" "file2")
+                   (pe/filter-tree source "."))))
+  (let ((source '("dir1" ("dir2" "file3" "file4") ("dir3") "file1" "file2")))
+    (should (equal '("dir1" ("dir2" "file3" "file4") "file1" "file2")
+                   (pe/filter-tree source "."))))
+  (let ((source '("dir1" ("dir2" "file3" "file4") ("dir3") "file1" "file2")))
+    (should (equal '("dir1" ("dir2" "file3" "file4"))
+                   (pe/filter-tree source "[34]"))))
+  )
+
 (defun pe/integration-test ()
   (let (( pe/get-directory-files-method
           (lambda (dir func)
