@@ -10,7 +10,6 @@ A tree project explorer.
     * Occur support
     * Folding
     * Grouping of folders containing a single folder
-    * Single key navigation keybindings
 
 ## Main commands:
 
@@ -18,6 +17,7 @@ A tree project explorer.
     project-explorer-helm -- browse the file collection using helm
 
 ## Main key-bindings:
+    FIXME: add bindings
 
     "s"        Change directory
     "j"        Next line
@@ -85,3 +85,11 @@ The default `pe/project-root-function` assumes that the project root will be the
 
 (setq pe/project-root-function 'pe/project-root-function-sample)
 ```
+
+## API
+
+<!-- FIXME -->
+pe/with-current-directory
+
+<!-- FIXME -->
+Before/after hooks

@@ -156,6 +156,7 @@ Called with no arguments, with the originating buffer as current."
   :group 'project-explorer)
 
 ;; FIXME: Rename to before-something?
+;; FIXME: Also add after-something?
 (defcustom pe/directory-change-hook nil
   "A hook run when the directory is changed,
 or a project-explorer buffer is first created.
@@ -200,6 +201,13 @@ Set once, when the buffer is first created.")
        (pe/revert-buffer))
      body-result))
 (put 'pe/with-continued-revert 'common-lisp-indent-function
+     '(&body))
+
+(defmacro pe/with-current-directory (&rest body)
+  (declare (indent 0))
+  `(let ((default-directory (pe/current-directory)))
+     ,@body))
+(put 'pe/with-current-directory 'common-lisp-indent-function
      '(&body))
 
 (defun pe/project-root-function-default ()
@@ -666,7 +674,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
     (goto-char (line-beginning-position))
     (looking-at-p ".*/$")))
 
-(defun pe/get-directory ()
+(defun pe/current-directory ()
   "Return the directory closest to point."
   (or (when (pe/at-directory-p)
         (pe/user-get-filename))
@@ -1121,24 +1129,11 @@ With ARG, reset it to the default value."
 (defun pe/ack-and-a-half ()
   (interactive)
   (require 'ack-and-a-half)
-  (let* (( ack-and-a-half-prompt-for-directory nil)
-         ( dir (pe/get-directory))
-         ( default-directory dir)
-         ( ack-and-a-half-root-directory-functions
-           (list (lambda () dir))))
-    (call-interactively 'ack-and-a-half)))
-
-;;; * Minor mode integration
-
-(defun pe/hl-line-range ()
-  (save-excursion
-    (cons (progn
-            (forward-visible-line 0)
-            (point))
-          (progn
-            (forward-visible-line 1)
-            (point))
-          )))
+  (pe/with-current-directory
+    (let* (( ack-and-a-half-prompt-for-directory nil)
+           ( ack-and-a-half-root-directory-functions
+             (list (lambda () default-directory))))
+      (call-interactively 'ack-and-a-half))))
 
 ;;; * File management
 
@@ -1146,7 +1141,7 @@ With ARG, reset it to the default value."
   "If FILE-NAME ends with a /, create a directory.
 Otherwise an empty file."
   (interactive
-   (let (( root (pe/get-directory)))
+   (let (( root (pe/current-directory)))
      (list (read-file-name "Create file: " root nil))))
   (cl-assert pe/data)
   (cl-assert (not (file-exists-p file-name)))
@@ -1246,6 +1241,18 @@ Otherwise an empty file."
       (pe/set-tree nil 'refresh pe/data)
       (pe/show-file-prog new-file-name)
       )))
+
+;;; * Minor mode integration
+
+(defun pe/hl-line-range ()
+  (save-excursion
+    (cons (progn
+            (forward-visible-line 0)
+            (point))
+          (progn
+            (forward-visible-line 1)
+            (point))
+          )))
 
 ;;; ** Isearch
 
@@ -1467,7 +1474,7 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (setq-local mode-line-format
                 pe/mode-line-format))
 
-  ;; FIXME: add show-all, omit and filter bindings
+  ;; FIXME: add show-all, omit, ack and filter bindings
   (es-define-keys project-explorer-mode-map
     (kbd "+") 'pe/create-file
     (kbd "-") 'pe/delete-file
