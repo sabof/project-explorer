@@ -276,6 +276,8 @@ Directories first, then alphabetically."
 
 ;; FIXME: filter-set ?
 ;; Also omit-toggle?
+;; + readmes
+
 (defun pe/set-filter-regex (filter)
   ;; FIXME: Doc
   (interactive (list (if current-prefix-arg
@@ -1376,10 +1378,10 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
 
           (let (( inhibit-read-only t)
                 ( data-for-print pe/data))
-            (when pe/inline-folders
-              (cl-callf pe/compress-tree data-for-print))
             (when pe/filter-regex
               (cl-callf pe/filter-tree data-for-print pe/filter-regex))
+            (when pe/inline-folders
+              (cl-callf pe/compress-tree data-for-print))
 
             (erase-buffer)
             (delete-all-overlays)
@@ -1451,6 +1453,7 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
     (setq-local mode-line-format
                 pe/mode-line-format))
 
+  ;; FIXME: add show-all, omit and filter bindings
   (es-define-keys project-explorer-mode-map
     (kbd "+") 'pe/create-file
     (kbd "-") 'pe/delete-file
