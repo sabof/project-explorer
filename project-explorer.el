@@ -112,8 +112,16 @@ entry."
                              default-directory)))
                    'face 'font-lock-function-name-face
                    'help-echo default-directory)
-                  (when pe/reverting
-                    " (Indexing)")
+                  (when (or pe/reverting pe/filter-regex)
+                    (format " (%s)"
+                            (concat
+                             (when pe/filter-regex
+                               "Filtered")
+                             (and pe/filter-regex
+                                  pe/reverting
+                                  ", ")
+                             (when pe/reverting
+                               "Indexing"))))
                   ))
   "What to display in the mode-line.
 Use the default when nil."
