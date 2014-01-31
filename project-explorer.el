@@ -1567,6 +1567,7 @@ outside of the project's root."
                                     'refresh
                                   'directory-change))))))
 
+;;;###autoload
 (cl-defun project-explorer-open ()
   "Show or create the project explorer for the current project."
   (interactive)
