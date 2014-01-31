@@ -163,11 +163,6 @@ and before the directory tree is read."
   :group 'project-explorer
   :type 'hook)
 
-(defcustom pe/after-tree-display-hook nil
-  "A hook run after a new tree has been printed to the buffer."
-  :group 'project-explorer
-  :type 'hook)
-
 ;;; * Internal variables
 
 (defvar pe/get-directory-tree-async-delay 0.5
@@ -281,7 +276,7 @@ Directories first, then alphabetically."
 
 (defun pe/set-filter-regex (filter)
   "Only show files matching FILTER.
-Disable filtering with prefix arg."
+Hides empty directories. With prefix arg, disable filtering."
   (interactive (list (if current-prefix-arg
                          nil
                        (read-string "Set filter regex: "
@@ -1443,7 +1438,6 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
                 pe/origin-file-name nil
                 pe/helm-cache nil
                 pe/reverting nil)
-          (run-hooks 'pe/after-tree-display-hook)
           )))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
