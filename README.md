@@ -3,13 +3,14 @@ A tree project explorer.
 ![screenshot](https://github.com/sabof/project-explorer/raw/master/screenshot.png)
 
 ## Features:
+
     * Asynchronous indexing
     * Caching
-    * Basic file-management
+    * File management
     * I-search support
-    * Occur support
+    * Helm support
     * Folding
-    * Grouping of folders containing a single folder
+    * Filtering
 
 ## Main commands:
 
@@ -17,26 +18,27 @@ A tree project explorer.
     project-explorer-helm -- browse the file collection using helm
 
 ## Main key-bindings:
-    FIXME: add bindings
 
     "s"        Change directory
     "j"        Next line
     "k"        Previous line
-    "g"        refresh
+    "g"        Refresh
     "+"        Create file or directory (if the name ends with a slash)
     "-" & "d"  Delete file or directory
     "c"        Copy file or directory
     "r"        Rename file or directory
-    "q"        hide sidebar
-    "u"        go to parent directory
-    "["        previous sibling
-    "]"        next sibling
-    "r"        isearch-backward
-    "TAB"      toggle-folding
-    "C-U TAB"  unfold descendants
-    "RET"      toggle folding of visit file (Specify window with C-U)
-    "f"        visit file or directory (Specify window with C-U)
-    "w"        show the path of file at point, and copy it to clipboard
+    "q"        Hide sidebar
+    "u"        Go to parent directory
+    "["        Previous sibling
+    "]"        Next sibling
+    "TAB"      Toggle folding. Unfold descendants with C-U
+    "S-TAB"    Fold all. Unfold with C-U
+    "RET"      Toggle folding of visit file. Specify window with C-U
+    "f"        Visit file or directory. Specify window with C-U
+    "w"        Show the path of file at point, and copy it to clipboard
+    "M-k"      Launch ack-and-a-half, from the closest directory
+    "M-l"      Filter using a regular expression. Call with C-u to disable
+    "M-o"      Toggle omission of hidden and temporary files
 
 ## Main customizable variables:
 
@@ -85,11 +87,3 @@ The default `pe/project-root-function` assumes that the project root will be the
 
 (setq pe/project-root-function 'pe/project-root-function-sample)
 ```
-
-## API
-
-<!-- FIXME -->
-pe/with-current-directory
-
-<!-- FIXME -->
-Before/after hooks

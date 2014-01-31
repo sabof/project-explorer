@@ -155,13 +155,16 @@ Called with no arguments, with the originating buffer as current."
   "Face used for directories in project-explorer sidebar."
   :group 'project-explorer)
 
-;; FIXME: Rename to before-something?
-;; FIXME: Also add after-something?
-(defcustom pe/directory-change-hook nil
+(defcustom pe/before-tree-lookup-hook nil
   "A hook run when the directory is changed,
 or a project-explorer buffer is first created.
 It is run after directory local variables have been processed,
 and before the directory tree is read."
+  :group 'project-explorer
+  :type 'hook)
+
+(defcustom pe/after-tree-display-hook nil
+  "A hook run after a new tree has been printed to the buffer."
   :group 'project-explorer
   :type 'hook)
 
@@ -1153,6 +1156,7 @@ Otherwise an empty file."
       )))
 
 (cl-defun pe/delete-file (file-name)
+  "Query and delete the file or directory FILE-NAME."
   (interactive (list (pe/user-get-filename)))
   (cl-assert pe/data)
   (cl-assert (file-exists-p file-name))
@@ -1175,7 +1179,8 @@ Otherwise an empty file."
       (pe/goto-file (pe/get-filename))
       )))
 
-(cl-defun pe/rename-file (file-name new-file-name-arg)
+(cl-defun pe/rename-file (file-name new-file-name)
+  "Rename \(or move\) FILE-NAME to NEW-FILE-NAME."
   (interactive (list (pe/user-get-filename)
                      (read-file-name "Rename to: "
                                      (file-name-directory
@@ -1192,22 +1197,24 @@ Otherwise an empty file."
 
   (pe/with-continued-revert
     (let* (( file-name-data (pe/data-get file-name))
-           ( new-file-name (if (not (file-directory-p new-file-name-arg))
-                               new-file-name-arg
-                             (concat (file-name-as-directory new-file-name-arg)
-                                     (file-name-nondirectory
-                                      (directory-file-name file-name))))))
+           ( new-file-name-literal
+             (if (not (file-directory-p new-file-name))
+                 new-file-name
+               (concat (file-name-as-directory new-file-name)
+                       (file-name-nondirectory
+                        (directory-file-name file-name))))))
 
-      (dired-rename-file file-name new-file-name-arg 1)
+      (dired-rename-file file-name new-file-name 1)
 
       (pe/data-delete file-name)
-      (pe/data-add new-file-name file-name-data)
+      (pe/data-add new-file-name-literal file-name-data)
       (pe/set-tree nil 'refresh pe/data)
-      (pe/show-file-prog new-file-name)
+      (pe/show-file-prog new-file-name-literal)
 
       )))
 
-(cl-defun pe/copy-file (file-name new-file-name-arg)
+(cl-defun pe/copy-file (file-name new-file-name)
+  "Copy FILE-NAME to NEW-FILE-NAME."
   (interactive (list (pe/user-get-filename)
                      (read-file-name "Copy to: "
                                      (file-name-directory
@@ -1224,17 +1231,18 @@ Otherwise an empty file."
 
   (pe/with-continued-revert
     (let* (( file-name-data (pe/data-get file-name))
-           ( new-file-name (if (not (file-directory-p new-file-name-arg))
-                               new-file-name-arg
-                             (concat (file-name-as-directory new-file-name-arg)
-                                     (file-name-nondirectory
-                                      (directory-file-name file-name))))))
+           ( new-file-name-literal
+             (if (not (file-directory-p new-file-name))
+                 new-file-name
+               (concat (file-name-as-directory new-file-name)
+                       (file-name-nondirectory
+                        (directory-file-name file-name))))))
 
-      (copy-file file-name new-file-name-arg 1)
+      (copy-file file-name new-file-name 1)
 
-      (pe/data-add new-file-name file-name-data)
+      (pe/data-add new-file-name-literal file-name-data)
       (pe/set-tree nil 'refresh pe/data)
-      (pe/show-file-prog new-file-name)
+      (pe/show-file-prog new-file-name-literal)
       )))
 
 ;;; * Minor mode integration
@@ -1356,7 +1364,7 @@ File name defaults to `buffer-file-name'"
          ( window
            (or existing
                (split-window (car non-side-windows)
-                             nil 'left))))
+                             nil pe/side))))
     (select-window window)
     (setf (window-buffer window) buffer)))
 
@@ -1435,6 +1443,7 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
                 pe/origin-file-name nil
                 pe/helm-cache nil
                 pe/reverting nil)
+          (run-hooks 'pe/after-tree-display-hook)
           )))))
 
 (cl-defun pe/revert-buffer (&rest ignore)
@@ -1531,7 +1540,7 @@ outside of the project's root."
         dir-local-variables-alist nil)
   (hack-dir-local-variables-non-file-buffer)
 
-  (run-hooks 'pe/directory-change-hook)
+  (run-hooks 'pe/before-tree-lookup-hook)
 
   (let (( inhibit-read-only t)
         ( cache (and pe/cache-enabled
