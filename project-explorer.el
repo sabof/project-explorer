@@ -1179,6 +1179,7 @@ Otherwise an empty file."
       (pe/data-delete file-name)
       (pe/set-tree nil 'refresh pe/data)
       (goto-char (max (point-min) (min (point-max) point)))
+      (dired-clean-up-after-deletion file-name)
       (pe/goto-file (pe/get-filename))
       )))
 
