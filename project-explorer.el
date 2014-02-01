@@ -38,6 +38,7 @@
 (require 'es-lib)
 (require 'es-windows)
 (require 'dired)
+(require 'dired-x)
 
 (require 'helm-utils nil t)
 (require 'helm-mode nil t)
@@ -368,7 +369,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
          ( head pe/data))
     (cl-mapl (lambda (segments)
                (if (not (cdr segments))
-                   (setcdr head (cl-remove (car segments)
+                   (setcdr head (cl-delete (car segments)
                                            (cdr head)
                                            :key (lambda (it)
                                                   (if (consp it)
@@ -499,7 +500,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
   (let* (( inhibit-quit t)
          ( buffer (current-buffer))
          ( file-specs
-           (cl-remove-if
+           (cl-delete-if
             (lambda (file-spec)
               (or (member (nth 0 file-spec) '("." ".."))
                   (not (pe/file-interesting-p
@@ -579,7 +580,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
     (when (cl-assoc default-directory pe/cache-alist
                     :test 'string-equal)
       (setq pe/cache-alist
-            (cl-remove default-directory
+            (cl-delete default-directory
                        pe/cache-alist
                        :key 'car
                        :test 'string-equal)))
@@ -617,7 +618,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
 (defun pe/folds-add (file-name)
   (setq pe/folds-open
         (cons file-name
-              (cl-remove-if
+              (cl-delete-if
                (lambda (listed-file-name)
                  (string-prefix-p listed-file-name file-name))
                pe/folds-open))))
@@ -816,7 +817,7 @@ Does nothing on an open line."
         (cl-return-from pe/unfold-prog))
     (pe/folds-add (pe/get-filename))
     (mapc 'delete-overlay
-          (cl-remove-if-not
+          (cl-delete-if-not
            (lambda (ov)
              (overlay-get ov 'is-pe-hider))
            (overlays-at (line-end-position))
@@ -955,7 +956,7 @@ Returns the value of point if there has been movement. nil otherwise."
   (with-current-buffer
       (pe/get-current-project-explorer-buffer)
     (let* (( visited-files
-             (cl-remove-if (lambda (name)
+             (cl-delete-if (lambda (name)
                              (or (null name)
                                  (not (string-prefix-p default-directory
                                                        name))))
@@ -1024,7 +1025,7 @@ Returns the value of point if there has been movement. nil otherwise."
         (cl-return-from project-explorer-helm))
       (set-window-configuration win-config)))
   (when (derived-mode-p 'project-explorer-mode)
-    (select-window (car (cl-remove-if
+    (select-window (car (cl-delete-if
                          (lambda (win)
                            (window-parameter win 'window-side))
                          (window-list)))))
@@ -1357,7 +1358,7 @@ File name defaults to `buffer-file-name'"
 
 (defun pe/show-buffer (buffer)
   (let* (( non-side-windows
-           (cl-remove-if
+           (cl-delete-if
             (lambda (win)
               (window-parameter win 'window-side))
             (window-list)))
