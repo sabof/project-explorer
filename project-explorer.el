@@ -1181,6 +1181,10 @@ Otherwise an empty file."
       (pe/set-tree nil 'refresh pe/data)
       (goto-char (max (point-min) (min (point-max) point)))
       (dired-clean-up-after-deletion file-name)
+      (unless (file-exists-p default-directory)
+        (pe/quit)
+        (kill-buffer (current-buffer))
+        (cl-return-from pe/delete-file))
       (pe/goto-file (pe/get-filename))
       )))
 
@@ -1482,7 +1486,8 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
             nil t)
   (face-remap-add-relative 'default 'pe/file-face)
   (font-lock-add-keywords
-   'project-explorer-mode '(("^.+/$" (0 'pe/directory-face append))))
+   'project-explorer-mode '(("^\\.\\.$\\|^\\.$\\|^.+/$"
+                             (0 'pe/directory-face append))))
 
   (when pe/mode-line-format
     (setq-local mode-line-format
