@@ -705,18 +705,21 @@ Has no effect if an external `pe/directory-tree-function' is used."
            (skip-chars-forward "\t ")
            (buffer-substring-no-properties
             (point) (line-end-position))))
-      (let (( result (get-line-text)))
-        (while (pe/up-element-prog)
-          (setq result (concat (get-line-text) result)))
-        (setq result (expand-file-name result))
-        (when (file-directory-p result)
-          (setq result (file-name-as-directory result)))
-        result))))
+      (save-restriction
+        (widen)
+        (let (( result (get-line-text)))
+          (while (pe/up-element-prog)
+            (setq result (concat (get-line-text) result)))
+          (setq result (expand-file-name result))
+          (when (file-directory-p result)
+            (setq result (file-name-as-directory result)))
+          result)))))
 
 (cl-defun pe/goto-file
     (file-name &optional on-each-semgent-function use-best-match)
   "Returns the position of the file, if it's found. Otherwise returns nil"
-  (when (string-equal (expand-file-name file-name) default-directory)
+  (setq file-name (expand-file-name file-name))
+  (when (string-equal file-name default-directory)
     (cl-return-from pe/goto-file nil))
   (let* (( segments (split-string
                      (if (file-name-absolute-p file-name)
@@ -729,42 +732,44 @@ Has no effect if an external `pe/directory-tree-function' is used."
          best-match
          next-round-start
          found)
-    (goto-char (point-min))
-    (save-match-data
-      (cl-loop with limit
-               for segment in segments
-               for indent from 0
-               do
-               (when next-round-start
-                 (goto-char next-round-start))
-               (cond ( (and (cl-plusp indent)
-                            (looking-at (concat (regexp-quote segment) "/")))
-                       (setq next-round-start (match-end 0))
-                       (setq best-match (point))
-                       (cl-decf indent))
-                     ( (re-search-forward
-                        (format "^\t\\{%s\\}\\(?1:%s\\)[/\n]"
-                                (int-to-string indent)
-                                (regexp-quote segment))
-                        limit t)
-                       (setq next-round-start (match-end 0))
-                       (setq limit (save-excursion
-                                     (pe/forward-element)))
-                       (setq best-match (match-beginning 1))
-                       (when on-each-semgent-function
-                         (save-excursion
-                           (goto-char (match-beginning 1))
-                           (funcall on-each-semgent-function))))
-                     ( t (cl-return)))
-               finally (setq found t)))
-    (cl-assert (or (not found) (and found best-match)) nil
-               "Found, without best-match, with file-name %s"
-               file-name)
-    (if (or found (and best-match use-best-match))
-        (progn (goto-char best-match)
-               (when found (point)))
-      (goto-char init-pos)
-      nil)))
+    (save-restriction
+      (widen)
+      (goto-char (point-min))
+      (save-match-data
+        (cl-loop with limit
+                 for segment in segments
+                 for indent from 0
+                 do
+                 (when next-round-start
+                   (goto-char next-round-start))
+                 (cond ( (and (cl-plusp indent)
+                              (looking-at (concat (regexp-quote segment) "/")))
+                         (setq next-round-start (match-end 0))
+                         (setq best-match (point))
+                         (cl-decf indent))
+                       ( (re-search-forward
+                          (format "^\t\\{%s\\}\\(?1:%s\\)[/\n]"
+                                  (int-to-string indent)
+                                  (regexp-quote segment))
+                          limit t)
+                         (setq next-round-start (match-end 0))
+                         (setq limit (save-excursion
+                                       (pe/forward-element)))
+                         (setq best-match (match-beginning 1))
+                         (when on-each-semgent-function
+                           (save-excursion
+                             (goto-char (match-beginning 1))
+                             (funcall on-each-semgent-function))))
+                       ( t (cl-return)))
+                 finally (setq found t)))
+      (cl-assert (or (not found) (and found best-match)) nil
+                "Found, without best-match, with file-name %s"
+                file-name)
+     (if (or found (and best-match use-best-match))
+         (progn (goto-char best-match)
+                (when found (point)))
+       (goto-char init-pos)
+       nil))))
 
 (defun pe/user-get-filename ()
   "Return the aboslute file-name of the file at point.
@@ -1614,6 +1619,10 @@ outside of the project's root."
       (with-current-buffer project-explorer-buffer
         (pe/show-file-prog origin-file-name)))
     project-explorer-buffer))
+
+;; FIXME: auto-revert
+;; FIXME: vc integration
+;; FIXME: narrowing
 
 (provide 'project-explorer)
 
