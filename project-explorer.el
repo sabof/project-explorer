@@ -1601,7 +1601,10 @@ outside of the project's root."
                        (setq pe/project-root
                              project-root))
                  (setq pe/origin-file-name origin-file-name)
-                 (pe/change-directory default-directory)
+                 (condition-case error
+                     (pe/change-directory default-directory)
+                   (error (kill-buffer (current-buffer))
+                          (signal (car error) (cdr error))))
                  (current-buffer)
                  ))))
     (pe/show-buffer-in-side-window project-explorer-buffer)
