@@ -172,6 +172,18 @@ and before the directory tree is read."
   :group 'project-explorer
   :type 'hook)
 
+(defcustom pe/display-tree-buffer-function 'pe/show-buffer-in-side-window
+  "Function used to display the project-explorer buffer.
+Must take a buffer as it's first argument."
+  :group 'project-explorer
+  :type 'symbol)
+
+(defcustom pe/display-content-buffer-function 'pe/show-buffer
+  "Function used to display file and directory buffers.
+Must take a buffer as it's first argument."
+  :group 'project-explorer
+  :type 'symbol)
+
 ;;; * Internal variables
 
 (defvar pe/get-directory-tree-async-delay 0.5
@@ -707,6 +719,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
             (point) (line-end-position))))
       (save-restriction
         (widen)
+        ;; FIXME: Differentiate between segments in inlined folders
         (let (( result (get-line-text)))
           (while (pe/up-element-prog)
             (setq result (concat (get-line-text) result)))
@@ -1072,7 +1085,9 @@ With a prefix argument, specify in which window to show it."
   (let ((file-name (pe/user-get-filename)))
     (if arg
         (esw/show-buffer (find-file-noselect file-name))
-      (pe/show-buffer (find-file-noselect file-name)))))
+      (funcall pe/display-content-buffer-function
+               (find-file-noselect file-name))
+      )))
 
 (defun pe/unfold (&optional expanded)
   "For interactive use only. Use `pe/unfold-prog' in code."
@@ -1612,7 +1627,7 @@ outside of the project's root."
                           (signal (car error) (cdr error))))
                  (current-buffer)
                  ))))
-    (pe/show-buffer-in-side-window project-explorer-buffer)
+    (funcall pe/display-tree-buffer-function project-explorer-buffer)
     (when (and origin-file-name
                pe/goto-current-file-on-open
                (buffer-local-value 'pe/data project-explorer-buffer))
