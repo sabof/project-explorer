@@ -1611,7 +1611,9 @@ outside of the project's root."
              (when (buffer-file-name)
                (expand-file-name
                 (buffer-file-name)))))
-         ( project-root (funcall pe/project-root-function))
+         ( project-root (or (funcall pe/project-root-function)
+                            (error "Buffer %s is not associated with a project"
+                                   (current-buffer))))
          ( project-explorer-buffer
            (or (pe/get-current-project-explorer-buffer)
                (with-current-buffer
