@@ -226,6 +226,7 @@ Set once, when the buffer is first created.")
   (expand-file-name
    (or (and (fboundp 'projectile-project-root)
             (projectile-project-root))
+       ;; FIXME: Order by length
        (locate-dominating-file default-directory ".git")
        (cl-find-if (lambda (a-root) (string-prefix-p a-root default-directory))
                    (mapcar (apply-partially 'buffer-local-value 'pe/project-root)
@@ -670,15 +671,13 @@ Has no effect if an external `pe/directory-tree-function' is used."
 
 ;;; * Text
 
-(defun pe/at-file-p ()
-  (save-excursion
-    (goto-char (line-beginning-position))
-    (looking-at-p ".*[^/]$")))
-
 (defun pe/at-directory-p ()
   (save-excursion
     (goto-char (line-beginning-position))
-    (looking-at-p ".*/$")))
+    (looking-at-p "\\.\\{1,2\\}\\|.*/$")))
+
+(defun pe/at-file-p ()
+  (not (pe/at-directory-p)))
 
 (defun pe/current-directory ()
   "Return the directory closest to point."
@@ -776,13 +775,13 @@ Has no effect if an external `pe/directory-tree-function' is used."
                        ( t (cl-return)))
                  finally (setq found t)))
       (cl-assert (or (not found) (and found best-match)) nil
-                "Found, without best-match, with file-name %s"
-                file-name)
-     (if (or found (and best-match use-best-match))
-         (progn (goto-char best-match)
-                (when found (point)))
-       (goto-char init-pos)
-       nil))))
+                 "Found, without best-match, with file-name %s"
+                 file-name)
+      (if (or found (and best-match use-best-match))
+          (progn (goto-char best-match)
+                 (when found (point)))
+        (goto-char init-pos)
+        nil))))
 
 (defun pe/user-get-filename ()
   "Return the aboslute file-name of the file at point.
@@ -1074,7 +1073,10 @@ Returns the value of point if there has been movement. nil otherwise."
 (defun pe/return (&optional arg)
   "Use `pe/find-file' when on a file, and `pe/tab' on a diriectory."
   (interactive "P")
-  (if (file-directory-p (pe/user-get-filename))
+  (if (and (file-directory-p (pe/user-get-filename))
+           (not (save-excursion
+                  (goto-char (line-beginning-position))
+                  (looking-at-p "^"))))
       (pe/tab arg)
     (pe/find-file arg)))
 
@@ -1105,7 +1107,7 @@ With a prefix argument, specify in which window to show it."
   (cond ( expanded
           (pe/unfold-descendants))
         ( (not (pe/folded-p)))
-        ( t (pe/unfold-prog))))
+        ( (pe/unfold-prog))))
 
 (defun pe/up-element ()
   "Goto the parent element of the file at point.
