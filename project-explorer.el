@@ -223,15 +223,19 @@ Set once, when the buffer is first created.")
      '(&body))
 
 (defun pe/project-root-function-default ()
-  (expand-file-name
-   (or (and (fboundp 'projectile-project-root)
-            (projectile-project-root))
-       ;; FIXME: Order by length
-       (locate-dominating-file default-directory ".git")
-       (cl-find-if (lambda (a-root) (string-prefix-p a-root default-directory))
-                   (mapcar (apply-partially 'buffer-local-value 'pe/project-root)
-                           (pe/get-project-explorer-buffers)))
-       default-directory)))
+  (if (fboundp 'projectile-project-root)
+      (projectile-project-root)
+    (let (( candidates
+            (list (locate-dominating-file default-directory ".git")
+                  (cl-find-if (lambda (a-root) (string-prefix-p a-root default-directory))
+                              (mapcar (apply-partially 'buffer-local-value 'pe/project-root)
+                                      (pe/get-project-explorer-buffers)))
+                  default-directory)))
+      (cl-reduce (lambda (a b)
+                   (if (> (length a) (length b)) a b))
+                 (mapcar 'expand-file-name
+                         (cl-remove-if 'null candidates)))
+      )))
 
 (cl-defun pe/compress-tree (branch)
   (cond ( (not (consp branch))
