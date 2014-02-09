@@ -234,7 +234,7 @@ Set once, when the buffer is first created.")
       (cl-reduce (lambda (a b)
                    (if (> (length a) (length b)) a b))
                  (mapcar 'expand-file-name
-                         (cl-remove-if 'null candidates)))
+                         (remq nil candidates)))
       )))
 
 (cl-defun pe/compress-tree (branch)
@@ -649,8 +649,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
                default-directory)))
          ( new-folds
            (cl-remove-if
-            (lambda (listed-file-name)
-              (string-prefix-p file-name listed-file-name))
+            (apply-partially 'string-prefix-p file-name)
             pe/folds-open))
          ( removed-folds
            (cl-set-difference pe/folds-open
