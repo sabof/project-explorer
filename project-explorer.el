@@ -1643,6 +1643,7 @@ outside of the project's root."
     project-explorer-buffer))
 
 ;; FIXME: auto-revert
+;; FIXME: filenotify
 ;; FIXME: vc integration
 ;; FIXME: narrowing
 
