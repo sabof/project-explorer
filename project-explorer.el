@@ -238,16 +238,16 @@ Set once, when the buffer is first created.")
       )))
 
 (cl-defun pe/compress-tree (branch)
-  (cond ( (not (consp branch))
+  (cond ( (not (consp branch))          ; File
           branch)
-        ( (= (length branch) 1)
+        ( (= (length branch) 1)         ; Empty directory
           branch)
-        ( (and (= (length branch) 2)
+        ( (and (= (length branch) 2)    ; Directory with one directory
                (consp (cl-second branch)))
           (pe/compress-tree
            (cons (concat (car branch) "/" (cl-caadr branch))
                  (cl-cdadr branch))))
-        ( t (cons (car branch)
+        ( t (cons (car branch)          ; Other directory
                   (mapcar 'pe/compress-tree (cdr branch))))))
 
 (cl-defun pe/sort (branch &optional dont-recurse)
@@ -1438,14 +1438,22 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
                 ( data-for-print pe/data))
             (when pe/filter-regex
               (cl-callf pe/filter-tree data-for-print pe/filter-regex))
+
             (when pe/inline-folders
-              (cl-callf pe/compress-tree data-for-print))
+              (setq data-for-print
+                    (cons (car data-for-print)
+                          (mapcar 'pe/compress-tree (cdr data-for-print)))))
+
+            (setq tmp1 (prin1-to-string
+                        data-for-print))
 
             (setcdr data-for-print
                     (cons ".." (cdr data-for-print)))
 
             (setcdr data-for-print
                     (cons "." (cdr data-for-print)))
+
+            (setq tmp2 (copy-list data-for-print))
 
             (erase-buffer)
             (delete-all-overlays)
