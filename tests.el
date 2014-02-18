@@ -179,7 +179,8 @@ tests.el
                       "ab"
                       "cd"))
          (output (pe/flatten-tree input))
-         (expected-output (list "def/ab"
+         (expected-output (list "def/"
+                                "def/ab"
                                 "def/cd")))
     (should (tree-equal output expected-output
                         :test 'string-equal))))
@@ -189,17 +190,8 @@ tests.el
                       "ab"
                       "cd"))
          (output (pe/flatten-tree input "abc"))
-         (expected-output (list "abc/def/ab"
-                                "abc/def/cd")))
-    (should (tree-equal output expected-output
-                        :test 'string-equal))))
-
-(ert-deftest pe/flatten-tree3 ()
-  (let* ((input (list "def"
-                      "ab"
-                      "cd"))
-         (output (pe/flatten-tree input "abc"))
-         (expected-output (list "abc/def/ab"
+         (expected-output (list "abc/def/"
+                                "abc/def/ab"
                                 "abc/def/cd")))
     (should (tree-equal output expected-output
                         :test 'string-equal))))

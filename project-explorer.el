@@ -40,6 +40,7 @@
 (require 'dired)
 (require 'dired-x)
 
+(require 'filenotify nil t)
 (require 'helm-utils nil t)
 (require 'helm-mode nil t)
 (require 'helm-locate nil t)
@@ -63,6 +64,12 @@
 
 (defcustom pe/cache-enabled t
   "Whether to use cache."
+  :group 'project-explorer
+  :type 'boolean)
+
+(defcustom pe/filenotify-enabled
+  (featurep 'filenotify)
+  "When non-nil, watch directory for changes, and update automatically."
   :group 'project-explorer
   :type 'boolean)
 
@@ -191,6 +198,8 @@ Must take a buffer as it's first argument."
 
 (defvar pe/cache-alist nil
   "In-memory cache of directory trees.")
+
+(defvar pe/filenotify-handlers nil)
 
 (defvar-local pe/filter-regex nil
   "Only files matching this regex will be shown.
@@ -627,10 +636,41 @@ Has no effect if an external `pe/directory-tree-function' is used."
               (read (current-buffer))))
       (setq pe/cache-alist (cl-acons default-directory cache-content
                                      pe/cache-alist))
-      cache-content))
+      cache-content)))
+
+;;; ** File notifications
+
+(defun pe/filenotify-callback (event)
+  (cl-destructuring-bind
+      (descriptor action file file1)
+      event
+    ;; FIXME: Ensure that the structure has changed, before acting
+    ;; FIXME: Ensure that manual modifications are not captured(?)
+    ;; FIXME: Remove notifiers
+    ;; FIXME: Verify what happends when a directory is deleted
+    (cl-case descri)
+    ))
+
+(defun pe/filenotify-register ()
+  (let (( directories
+          (cl-mapcan (lambda (it)
+                       (if (consp it)
+                           (mapcar (apply-partially 'concat default-directory)
+                                   (cl-delete-if (lambda (it3)
+                                                   (string-match-p "/$" it3))
+                                                 (pe/flatten-tree it)))
+                         (list (concat default-directory it))))
+                     (cdr pe/data))))
+    (cl-dolist (dir directories)
+      (push (file-notify-add-watch dir '(change) 'pe/filenotify-callback)
+            pe/filenotify-handlers))
+    ))
+
+(defun pe/filenotify-unregister ()
   )
 
-;;; * Fold data
+
+;;; ** Fold data
 
 (defun pe/folds-add (file-name)
   (setq pe/folds-open
@@ -962,15 +1002,18 @@ Returns the value of point if there has been movement. nil otherwise."
 (defvar pe/helm-buffer-max-length 30)
 
 (defun pe/flatten-tree (tree &optional prefix)
+  "Convert tree to a list of files.
+Directories are not included."
   (let (( current-prefix
           (if prefix
               (concat prefix "/" (car tree))
             (car tree))))
-    (cl-mapcan (lambda (it)
-                 (if (consp it)
-                     (pe/flatten-tree it current-prefix)
-                   (list (concat current-prefix "/" it))))
-               (cdr tree))))
+    (cons (concat current-prefix "/")
+          (cl-mapcan (lambda (it)
+                       (if (consp it)
+                           (pe/flatten-tree it current-prefix)
+                         (list (concat current-prefix "/" it))))
+                     (cdr tree)))))
 
 (cl-defun pe/helm-candidates ()
   (with-current-buffer
@@ -986,9 +1029,10 @@ Returns the value of point if there has been movement. nil otherwise."
              (lambda ()
                (cl-mapcan (lambda (it)
                             (if (consp it)
-                                (mapcar (lambda (it2)
-                                          (concat default-directory it2))
-                                        (pe/flatten-tree it))
+                                (mapcar (apply-partially 'concat default-directory)
+                                        (cl-delete-if (lambda (it3)
+                                                        (string-match-p "/$" it3))
+                                                      (pe/flatten-tree it)))
                               (list (concat default-directory it))))
                           (cdr pe/data))))
            ( flattened-file-list
