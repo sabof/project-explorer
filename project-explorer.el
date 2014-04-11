@@ -213,6 +213,16 @@ Set once, when the buffer is first created.")
 (defvar-local pe/folds-open nil)
 (defvar-local pe/previous-directory nil)
 (defvar-local pe/helm-cache nil)
+
+;; Set by:
+;; - pe/revert-cancel
+;; - individual retrieval functions
+;; - too many other things
+
+;; Affects:
+;; - The modeline indicator
+;; - Behaviour of file-operations
+;; - Behaviour of new revers/directory changes
 (defvar-local pe/reverting nil)
 (defvar-local pe/get-directory-tree-async-timer nil)
 (defvar-local pe/origin-file-name nil)
