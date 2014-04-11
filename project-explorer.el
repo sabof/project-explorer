@@ -3,7 +3,7 @@
 ;; Hi-lock: (("^;;; \\*.+" (0 '(:inherit (bold org-level-1)) t)))
 ;; Hi-lock: end
 
-;;; Version: 0.13.2
+;;; Version: 0.13.3
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3") (es-windows "0.1") (emacs "24"))
@@ -1507,7 +1507,7 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
             (setcdr data-for-print
                     (cons "." (cdr data-for-print)))
 
-            (setq tmp2 (copy-list data-for-print))
+            (setq tmp2 (cl-copy-list data-for-print))
 
             (erase-buffer)
             (delete-all-overlays)
