@@ -238,8 +238,6 @@ Set once, when the buffer is first created.")
      (when was-reverting
        (pe/revert-buffer))
      body-result))
-(put 'pe/with-continued-revert 'common-lisp-indent-function
-     '(&body))
 
 (defun pe/project-root-function-default ()
   (if (fboundp 'projectile-project-root)
