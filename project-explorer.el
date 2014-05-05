@@ -1498,16 +1498,11 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
                     (cons (car data-for-print)
                           (mapcar 'pe/compress-tree (cdr data-for-print)))))
 
-            (setq tmp1 (prin1-to-string
-                        data-for-print))
-
             (setcdr data-for-print
                     (cons ".." (cdr data-for-print)))
 
             (setcdr data-for-print
                     (cons "." (cdr data-for-print)))
-
-            (setq tmp2 (cl-copy-list data-for-print))
 
             (erase-buffer)
             (delete-all-overlays)
