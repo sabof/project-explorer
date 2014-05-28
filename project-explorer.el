@@ -1427,13 +1427,12 @@ File name defaults to `buffer-file-name'"
                (display-buffer-in-side-window
                 buffer
                 `((side . ,pe/side)
+                  (window-width . ,pe/width)
                   )))))
     (when existing-window
       (setf (window-dedicated-p window) nil
             (window-buffer window) buffer))
     (setf (window-dedicated-p window) t)
-    (unless existing-window
-      (es-set-window-body-width window pe/width))
     (select-window window)
     window))
 
