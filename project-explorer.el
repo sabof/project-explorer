@@ -247,11 +247,13 @@ Set once, when the buffer is first created.")
                   (cl-find-if (lambda (a-root) (string-prefix-p a-root default-directory))
                               (mapcar (apply-partially 'buffer-local-value 'pe/project-root)
                                       (pe/get-project-explorer-buffers)))
-                  default-directory)))
-      (cl-reduce (lambda (a b)
-                   (if (> (length a) (length b)) a b))
-                 (mapcar 'expand-file-name
-                         (remq nil candidates)))
+                  )))
+      (if (cl-every 'null candidates)
+          default-directory
+        (cl-reduce (lambda (a b)
+                     (if (> (length a) (length b)) a b))
+                   (mapcar 'expand-file-name
+                           (remq nil candidates))))
       )))
 
 (cl-defun pe/compress-tree (branch)
