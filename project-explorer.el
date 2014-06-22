@@ -1380,8 +1380,9 @@ Otherwise an empty file."
   (interactive)
   (let ((window (selected-window)))
     (quit-window)
-    (when (window-live-p window)
-      (delete-window))))
+    (and (window-live-p window)
+         (window-deletable-p window)
+         (delete-window))))
 
 (defun pe/show-file (&optional file-name)
   "Show FILE-NAME, in the associated project-explorer buffer.
