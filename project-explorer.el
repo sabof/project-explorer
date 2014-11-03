@@ -3,7 +3,7 @@
 ;; Hi-lock: (("^;;; \\*.+" (0 '(:inherit (bold org-level-1)) t)))
 ;; Hi-lock: end
 
-;;; Version: 0.13.4
+;;; Version: 0.13.5
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3") (es-windows "0.1") (emacs "24"))
@@ -971,6 +971,9 @@ Does nothing on an open line."
 ;;; ** Navigation
 
 (defun pe/forward-element (&optional arg)
+  "Goto the next element of the same, or higher rank.
+Go backwards, if ARG is negative.
+Return the position if movement has occured, nil otherwise."
   (interactive "p")
   (setq arg (or arg 1))
   (save-match-data
@@ -987,6 +990,7 @@ Does nothing on an open line."
         (point)))))
 
 (defun pe/backward-element (&optional arg)
+  "Call `pe/forward-element', with negated ARG."
   (interactive "p")
   (setq arg (or arg 1))
   (pe/forward-element (- arg)))
@@ -1133,7 +1137,7 @@ Directories are not included."
   (if (and (file-directory-p (pe/user-get-filename))
            (not (save-excursion
                   (goto-char (line-beginning-position))
-                  (looking-at-p "^"))))
+                  (looking-at-p "^\\.\\{1,2\\}$"))))
       (pe/tab arg)
     (pe/find-file arg)))
 

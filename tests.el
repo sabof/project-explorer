@@ -284,6 +284,61 @@ node7/
                    (pe/filter-tree source "[34]"))))
   )
 
+(defun pe/parse-test-text-map (string)
+  (let ((markers nil))
+    (while (string-match "#\\(.\\)" string)
+      (push (cons (string-to-number (match-string 1 string))
+                  (match-beginning 0))
+            markers)
+      (setq string (concat (substring string 0 (match-beginning 0))
+                           (substring string (match-end 0)))))
+    (list string (nreverse markers))))
+
+(ert-deftest pe/parse-test-text-map ()
+  (let* ((input "dir1/
+di#1r2/
+\tdir3/
+\t\tfile1
+#2file2
+#3file3")
+         (expected-result (list "dir1/
+dir2/
+\tdir3/
+\t\tfile1
+file2
+file3"
+                                '((1 . 8)
+                                  (2 . 27)
+                                  (3 . 33))))
+         (actual-result (pe/parse-test-text-map input)))
+    (should (equal expected-result actual-result))))
+
+(ert-deftest pe/forward-element2 ()
+  (let (( pe/data
+          '((dir1)
+            (dir2
+             (dir3
+              file1))
+            file2
+            file3))
+        ( test-data
+          (pe/parse-test-text-map
+           "dir1/
+di#1r2/
+\tdir3/
+\t\tfile1
+#2file2
+#3file3")))
+    (with-temp-buffer
+      (insert (cl-first test-data))
+      (goto-char (cdr (assoc 1 (cl-second test-data))))
+      (pe/forward-element)
+      (should (equal (1- (point)) (cdr (assoc 2 (cl-second test-data)))))
+      (pe/forward-element)
+      (should (equal (1- (point)) (cdr (assoc 3 (cl-second test-data)))))
+      )
+    ))
+
 (defun pe/integration-test ()
   (let (( pe/get-directory-files-method
           (lambda (dir func)
