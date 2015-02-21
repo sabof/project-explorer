@@ -3,7 +3,7 @@
 ;; Hi-lock: (("^;;; \\*.+" (0 '(:inherit (bold org-level-1)) t)))
 ;; Hi-lock: end
 
-;;; Version: 0.13.5
+;;; Version: 0.13.6
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3") (es-windows "0.1") (emacs "24"))
@@ -1091,6 +1091,7 @@ Directories are not included."
       ( no-delay-on-input)
       )))
 
+;;;###autoload
 (cl-defun project-explorer-helm ()
   "Browse the project using helm."
   (interactive)
@@ -1414,6 +1415,15 @@ File name defaults to `buffer-file-name'"
              :key (apply-partially 'buffer-local-value 'pe/project-root)
              :test 'string-equal)))
 
+(defun pe/get-project-explorer-window ()
+  (let* (( project-explorer-buffers
+           (pe/get-project-explorer-buffers)))
+    (cl-find-if (lambda (window)
+                  (and (memq (window-buffer window)
+                             project-explorer-buffers)
+                       (window-parameter window 'window-side)))
+                (window-list))))
+
 (defun pe/show-buffer-in-side-window (buffer)
   (let* (( project-explorer-buffers
            (pe/get-project-explorer-buffers))
@@ -1424,11 +1434,7 @@ File name defaults to `buffer-file-name'"
                   (eq t (window-deletable-p win))
                   (delete-window win))))
          ( existing-window
-           (cl-find-if
-            (lambda (window)
-              (and (memq (window-buffer window) project-explorer-buffers)
-                   (window-parameter window 'window-side)))
-            (window-list)))
+           (pe/get-project-explorer-window))
          ( window
            (or existing-window
                (display-buffer-in-side-window
@@ -1702,6 +1708,16 @@ outside of the project's root."
       (with-current-buffer project-explorer-buffer
         (pe/show-file-prog origin-file-name)))
     project-explorer-buffer))
+
+;;;###autoload
+(defun project-explorer-toggle ()
+  (interactive)
+  (let (( window (pe/get-project-explorer-window)))
+    (if window
+        (with-selected-window window
+          (with-current-buffer (window-buffer window)
+            (pe/quit)))
+      (project-explorer-open))))
 
 ;; FIXME: auto-revert
 ;; FIXME: filenotify
