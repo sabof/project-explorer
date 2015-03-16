@@ -149,6 +149,11 @@ Directories matching this regular expression won't be traversed."
           (const :tag "Show all files" nil)
           (string :tag "Files matching this regex won't be shown")))
 
+(defcustom pe/omit-gitignore nil
+  "Whether to use omit files matches by .gitignore"
+  :group 'project-explorer
+  :type 'boolean)
+
 (defcustom pe/omit-enabled t
   "Whether to use `pe/omit-regex'."
   :group 'project-explorer
@@ -226,6 +231,7 @@ Set once, when the buffer is first created.")
 (defvar-local pe/reverting nil)
 (defvar-local pe/get-directory-tree-async-timer nil)
 (defvar-local pe/origin-file-name nil)
+(defvar-local pe/gitignored-files nil)
 
 ;;; * Backend
 
@@ -238,6 +244,20 @@ Set once, when the buffer is first created.")
      (when was-reverting
        (pe/revert-buffer))
      body-result))
+
+(cl-defun pe/get-gitignored-files ()
+  (unless (file-exists-p (concat (funcall pe/project-root-function) ".git"))
+    (cl-return-from pe/get-gitignored-files))
+  (with-temp-buffer
+    (call-process "git" nil t nil "status" "--ignored")
+    (goto-char (point-min))
+    ;; Won't be there if nothing is being ignored
+    (unless (re-search-forward "^Ignored files:" nil t)
+      (cl-return-from pe/get-gitignored-files))
+    (delete-region (point-min) (point))
+    (keep-lines "^\t")
+    (mapcar 'expand-file-name
+            (split-string (buffer-string) "\n" t "\t"))))
 
 (defun pe/project-root-function-default ()
   (if (fboundp 'projectile-project-root)
@@ -339,7 +359,10 @@ Has no effect if an external `pe/directory-tree-function' is used."
                 (directory-file-name path))))
     (and (or (not pe/omit-regex)
              (not pe/omit-enabled)
-             (not (string-match-p pe/omit-regex file))))))
+             (not (string-match-p pe/omit-regex file)))
+         (or (not pe/omit-gitignore)
+             (not (member path pe/gitignored-files))
+             ))))
 
 (cl-defun pe/data-get (file-name)
   (unless (string-prefix-p default-directory file-name)
@@ -1560,6 +1583,9 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
           (cl-return-from pe/revert-buffer))
       (user-error "Revert already in progress")))
   (setq pe/reverting t)
+  (when pe/omit-gitignore
+    (setq pe/gitignored-files
+          (pe/get-gitignored-files)))
   (funcall pe/directory-tree-function
            default-directory
            (apply-partially 'pe/set-tree (current-buffer) 'refresh)))
@@ -1665,6 +1691,9 @@ outside of the project's root."
               (and (get pe/directory-tree-function 'pe/async)
                    pe/auto-refresh-cache))
       (setq pe/reverting t)
+      (when pe/omit-gitignore
+        (setq pe/gitignored-files
+              (pe/get-gitignored-files)))
       (funcall pe/directory-tree-function
                default-directory
                (apply-partially 'pe/set-tree (current-buffer)
