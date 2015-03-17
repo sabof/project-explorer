@@ -245,19 +245,36 @@ Set once, when the buffer is first created.")
        (pe/revert-buffer))
      body-result))
 
-(cl-defun pe/get-gitignored-files ()
+(cl-defun pe/get-gitignored-files (callback)
   (unless (file-exists-p (concat (funcall pe/project-root-function) ".git"))
     (cl-return-from pe/get-gitignored-files))
-  (with-temp-buffer
-    (call-process "git" nil t nil "status" "--ignored")
-    (goto-char (point-min))
-    ;; Won't be there if nothing is being ignored
-    (unless (re-search-forward "^Ignored files:" nil t)
-      (cl-return-from pe/get-gitignored-files))
-    (delete-region (point-min) (point))
-    (keep-lines "^\t")
-    (mapcar 'expand-file-name
-            (split-string (buffer-string) "\n" t "\t"))))
+  (let* (( initial-buffer (current-buffer))
+         ( buffer (generate-new-buffer " git-status"))
+         ( process
+           (start-process "git-status"
+                          buffer
+                          "git"
+                          "status"
+                          "--ignored"))
+         ( result nil)
+         ( sentinel
+           (lambda (&rest ignore)
+             (with-current-buffer buffer
+               (goto-char (point-min))
+               ;; Won't be there if nothing is being ignored
+               (if (not (re-search-forward "^Ignored files:" nil t))
+                   (with-current-buffer initial-buffer
+                     (funcall callback nil))
+                 (delete-region (point-min) (point))
+                 (keep-lines "^\t")
+                 (setq result
+                       (mapcar 'expand-file-name
+                               (split-string (buffer-string) "\n" t "\t")))
+                 (with-current-buffer initial-buffer
+                   (funcall callback result))))
+             (kill-buffer buffer)
+             )))
+    (set-process-sentinel process sentinel)))
 
 (defun pe/project-root-function-default ()
   (if (fboundp 'projectile-project-root)
@@ -351,17 +368,21 @@ Hides empty directories. With prefix arg, disable filtering."
   (setq-local pe/filter-regex filter)
   (pe/set-tree nil 'refresh pe/data))
 
-(defun pe/file-interesting-p (path)
+(cl-defun pe/file-interesting-p (path)
   "Determines whether to display the file with PATH.
 If PATH ends with a /, it will be considered a directory.
 Has no effect if an external `pe/directory-tree-function' is used."
+  (unless pe/omit-enabled
+    (cl-return-from pe/file-interesting-p t))
   (let (( file (file-name-nondirectory
                 (directory-file-name path))))
     (and (or (not pe/omit-regex)
-             (not pe/omit-enabled)
              (not (string-match-p pe/omit-regex file)))
          (or (not pe/omit-gitignore)
-             (not (member path pe/gitignored-files))
+             (not (some (lambda (ignored)
+                          (message "%s %s" ignored path)
+                          (string-prefix-p ignored path))
+                        pe/gitignored-files))
              ))))
 
 (cl-defun pe/data-get (file-name)
@@ -1583,12 +1604,18 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
           (cl-return-from pe/revert-buffer))
       (user-error "Revert already in progress")))
   (setq pe/reverting t)
-  (when pe/omit-gitignore
-    (setq pe/gitignored-files
-          (pe/get-gitignored-files)))
-  (funcall pe/directory-tree-function
-           default-directory
-           (apply-partially 'pe/set-tree (current-buffer) 'refresh)))
+
+  (let ((buffer (current-buffer)))
+    (if pe/omit-gitignore
+        (pe/get-gitignored-files
+         (lambda (result)
+           (setq pe/gitignored-files result)
+           (funcall pe/directory-tree-function
+                    default-directory
+                    (apply-partially 'pe/set-tree (current-buffer) 'refresh))))
+      (funcall pe/directory-tree-function
+               default-directory
+               (apply-partially 'pe/set-tree (current-buffer) 'refresh)))))
 
 (define-derived-mode project-explorer-mode special-mode
     "Project explorer"
@@ -1691,15 +1718,22 @@ outside of the project's root."
               (and (get pe/directory-tree-function 'pe/async)
                    pe/auto-refresh-cache))
       (setq pe/reverting t)
-      (when pe/omit-gitignore
-        (setq pe/gitignored-files
-              (pe/get-gitignored-files)))
-      (funcall pe/directory-tree-function
-               default-directory
-               (apply-partially 'pe/set-tree (current-buffer)
-                                (if cache
-                                    'refresh
-                                  'directory-change))))))
+      (if pe/omit-gitignore
+          (pe/get-gitignored-files
+           (lambda (result)
+             (setq pe/gitignored-files result)
+             (funcall pe/directory-tree-function
+                      default-directory
+                      (apply-partially 'pe/set-tree (current-buffer)
+                                       (if cache
+                                           'refresh
+                                         'directory-change)))))
+        (funcall pe/directory-tree-function
+                 default-directory
+                 (apply-partially 'pe/set-tree (current-buffer)
+                                  (if cache
+                                      'refresh
+                                    'directory-change)))))))
 
 ;;;###autoload
 (cl-defun project-explorer-open ()
