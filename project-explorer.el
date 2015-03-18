@@ -380,7 +380,6 @@ Has no effect if an external `pe/directory-tree-function' is used."
              (not (string-match-p pe/omit-regex file)))
          (or (not pe/omit-gitignore)
              (not (some (lambda (ignored)
-                          (message "%s %s" ignored path)
                           (string-prefix-p ignored path))
                         pe/gitignored-files))
              ))))
