@@ -150,7 +150,9 @@ Directories matching this regular expression won't be traversed."
           (string :tag "Files matching this regex won't be shown")))
 
 (defcustom pe/omit-gitignore nil
-  "Whether to use omit files matches by .gitignore"
+  "Whether to use omit files matches by .gitignore.
+
+Directories containing only ignored files won't be shown."
   :group 'project-explorer
   :type 'boolean)
 

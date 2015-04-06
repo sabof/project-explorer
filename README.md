@@ -62,6 +62,10 @@ A tree project explorer.
 
     Files and directories matching this regex won't be traversed
 
+##### pe/omit-gitignore
+
+    Omit files based on .gitignore. Directories containing only ignored files won't be shown.
+
 ##### pe/side
 
     Set to 'left or 'right, depending on which side you want the sidebar to appear
