@@ -141,8 +141,11 @@ Use the default when nil."
   :group 'project-explorer
   :type 'boolean)
 
-(defcustom pe/omit-regex "^\\.\\|^#\\|~$"
+(defcustom pe/omit-regex (mapconcat 'identity
+                                    (list "^\\." "^#" "~$" "^node_modules$")
+                                    "\\|")
   "Specify which files to omit.
+
 Directories matching this regular expression won't be traversed."
   :group 'project-explorer
   :type '(choice
@@ -1553,11 +1556,8 @@ Redraws the tree based on DATA. Will try to restore folds, if TYPE is
                     (cons (car data-for-print)
                           (mapcar 'pe/compress-tree (cdr data-for-print)))))
 
-            (setcdr data-for-print
-                    (cons ".." (cdr data-for-print)))
-
-            (setcdr data-for-print
-                    (cons "." (cdr data-for-print)))
+            (setcdr data-for-print (cons ".." (cdr data-for-print)))
+            (setcdr data-for-print (cons "." (cdr data-for-print)))
 
             (erase-buffer)
             (delete-all-overlays)
