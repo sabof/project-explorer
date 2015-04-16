@@ -3,7 +3,7 @@
 ;; Hi-lock: (("^;;; \\*.+" (0 '(:inherit (bold org-level-1)) t)))
 ;; Hi-lock: end
 
-;;; Version: 0.14.2
+;;; Version: 0.14.3
 ;;; Author: sabof
 ;;; URL: https://github.com/sabof/project-explorer
 ;;; Package-Requires: ((cl-lib "0.3") (es-lib "0.3") (es-windows "0.1") (emacs "24"))
@@ -384,7 +384,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
     (and (or (not pe/omit-regex)
              (not (string-match-p pe/omit-regex file)))
          (or (not pe/omit-gitignore)
-             (not (some (lambda (ignored)
+             (not (cl-some (lambda (ignored)
                           (string-prefix-p ignored path))
                         pe/gitignored-files))
              ))))
