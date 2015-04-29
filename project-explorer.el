@@ -201,6 +201,12 @@ Must take a buffer as it's first argument."
   :group 'project-explorer
   :type 'symbol)
 
+(defcustom pe/follow-current nil
+  "Set to true to enable automatic project following.
+When enabled, follows the project of the currently edited buffer."
+  :group 'project-explorer
+  :type 'boolean)
+
 ;;; * Internal variables
 
 (defvar pe/get-directory-tree-async-delay 0.5
@@ -1736,6 +1742,46 @@ outside of the project's root."
                                       'refresh
                                     'directory-change)))))))
 
+;; Follow the currently opened buffer and show the corresponding
+;; project
+(defvar pe/follow-current-timer nil
+  "Timer to limit the frequency of the current project check.")
+
+(defun pe/has-cache-p ()
+  "Check if the current buffer has a cached project associated
+with it."
+  (when pe/cache-enabled
+    (let ((dir (funcall pe/project-root-function)))
+      (and dir (file-exists-p (pe/cache-make-filename dir))))))
+
+(defun pe/follow-current-open ()
+  "Switch the project staying in the same window.
+If project-explorer isn't opened or no project associated with
+the current buffer, stop following."
+  (if pe/follow-current
+      (when (and (pe/get-project-explorer-window)
+                 (or (pe/get-current-project-explorer-buffer)
+                     (pe/has-cache-p)))
+        (let ((win (selected-window)))
+          (project-explorer-open)
+          (select-window win)))
+    (pe/stop-follow-current)))
+
+(defun pe/post-command-follow ()
+  "Restart the timer to follow the project."
+  (interactive)
+  (when pe/follow-current-timer
+    (cancel-timer pe/follow-current-timer))
+  (setq pe/follow-current-timer (run-with-timer 0.25 nil #'pe/follow-current-open)))
+
+(defun pe/start-follow-current ()
+  "Turn on following the current project."
+  (add-hook 'post-command-hook #'pe/post-command-follow))
+
+(defun pe/stop-follow-current ()
+  "Turn off following the current project."
+  (remove-hook 'post-command-hook #'pe/post-command-follow))
+
 ;;;###autoload
 (cl-defun project-explorer-open ()
   "Show or create the project explorer for the current project."
@@ -1771,6 +1817,8 @@ outside of the project's root."
                (buffer-local-value 'pe/data project-explorer-buffer))
       (with-current-buffer project-explorer-buffer
         (pe/show-file-prog origin-file-name)))
+    (when pe/follow-current
+      (pe/start-follow-current))
     project-explorer-buffer))
 
 ;;;###autoload
