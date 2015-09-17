@@ -1760,8 +1760,10 @@ If project-explorer isn't opened or no project associated with
 the current buffer, stop following."
   (if pe/follow-current
       (when (and (pe/get-project-explorer-window)
-                 (or (pe/get-current-project-explorer-buffer)
-                     (pe/has-cache-p)))
+                 (if (fboundp 'projectile-project-p)
+                     (projectile-project-p)
+                   (or (pe/get-current-project-explorer-buffer)
+                       (pe/has-cache-p))))
         (let ((win (selected-window)))
           (project-explorer-open)
           (select-window win)))
