@@ -51,7 +51,7 @@ A tree project explorer.
 
     Indexing backend. One of `pe/get-directory-tree-async' (native,
     asynchronous), `pe/get-directory-tree-simple'(native, synchronous) or
-    `pe/get-directory-tree-external' (extrnal, asynchronus, requires
+    `pe/get-directory-tree-external' (external, asynchronous, requires
     "find" with GNU extensions)
 
 ##### pe/cache-enabled
@@ -85,7 +85,7 @@ The default `pe/project-root-function` assumes that the project root will be the
     ;; A specific directory
     (when (string-prefix-p "/path/to/my/project/" default-directory)
       "/path/to/my/project/")
-    ;; A directory containg a file
+    ;; A directory containing a file
     (locate-dominating-file default-directory "Web.config")
     default-directory)))
 
