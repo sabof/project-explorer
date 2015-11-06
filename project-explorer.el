@@ -507,7 +507,7 @@ Has no effect if an external `pe/directory-tree-function' is used."
                       for is-last = (= (length path) (1+ i))
                       do (setq head
                                (or (cl-find segment
-                                            (rest head)
+                                            (cl-rest head)
                                             :test 'equal
                                             :key 'car-safe)
                                    (funcall add-member
