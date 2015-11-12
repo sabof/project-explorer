@@ -837,6 +837,10 @@ Has no effect if an external `pe/directory-tree-function' is used."
 (cl-defun pe/goto-file
     (file-name &optional on-each-semgent-function use-best-match)
   "Returns the position of the file, if it's found. Otherwise returns nil"
+  (let ((buf (current-buffer)))
+    (run-with-timer 0 nil (lambda ()
+                            (with-current-buffer buf
+                              (hl-line-highlight)))))
   (setq file-name (expand-file-name file-name))
   (when (string-equal file-name default-directory)
     (cl-return-from pe/goto-file nil))
